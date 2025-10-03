@@ -806,6 +806,7 @@ function Main({ appName, aboutText } :any) {
     const [currentMode, setCurrentMode] = useState<'cropper' | 'pdfmaster' | 'molview'>('cropper');
     const [showPDFMaster, setShowPDFMaster] = useState(false);
     const [showMolView, setShowMolView] = useState(false);
+    const [finalizedFilesForPDF, setFinalizedFilesForPDF] = useState<any[]>([]);
     
     // Virtual Keyboard
     // Virtual keyboard state variables removed since keyboard is disabled
@@ -2732,6 +2733,37 @@ const generateFallbackPreview = () => {
         }
     };
 
+    const finalizeAllImagesForPDFMaster = async () => {
+        const cropKeys = Object.keys(crops);
+        if (cropKeys.length === 0) {
+            return [];
+        }
+
+        const finalizedFiles: any[] = [];
+
+        for (const key of cropKeys) {
+            const index = parseInt(key);
+            const crop = crops[index];
+            
+            if (crop && crop.width && crop.height) {
+                try {
+                    const enhancedImage = await generateEnhancedCroppedImage(crop, index);
+                    
+                    if (enhancedImage.dataUrl) {
+                        const response = await fetch(enhancedImage.dataUrl);
+                        const blob = await response.blob();
+                        const file = new File([blob], enhancedImage.filename, { type: 'image/png' });
+                        finalizedFiles.push(file);
+                    }
+                } catch (error) {
+                    console.error(`Error finalizing image ${index}:`, error);
+                }
+            }
+        }
+
+        return finalizedFiles;
+    };
+
     const onSaveCropped = async () => {
         const indicesToSave = selectedFiles.size > 0 ? Array.from(selectedFiles) : Object.keys(crops).map(Number);
 
@@ -3455,7 +3487,12 @@ const generateFallbackPreview = () => {
                             🖼️ Image Cropper
                         </button>
                         <button
-                            onClick={() => {
+                            onClick={async () => {
+                                saveCurrentTabState();
+                                const finalized = await finalizeAllImagesForPDFMaster();
+                                setFinalizedFilesForPDF(finalized);
+                                console.log(`Finalized ${finalized.length} images with all effects before switching to PDF Master`);
+                                
                                 setCurrentMode('pdfmaster');
                                 setShowPDFMaster(true);
                                 setShowMolView(false);
@@ -3765,6 +3802,26 @@ const generateFallbackPreview = () => {
                                 </button>
                                 <button onClick={onGeneratePDF} className="export-button" title="Ctrl+P">
                                     📄 Export PDF
+                                </button>
+                                <button 
+                                    onClick={async () => {
+                                        saveCurrentTabState();
+                                        const finalized = await finalizeAllImagesForPDFMaster();
+                                        setFinalizedFilesForPDF(finalized);
+                                        console.log(`Finalized ${finalized.length} images with all effects before switching to PDF Master`);
+                                        
+                                        setCurrentMode('pdfmaster');
+                                        setShowPDFMaster(true);
+                                        setShowMolView(false);
+                                    }} 
+                                    className="export-button" 
+                                    title="Apply changes and switch to PDF Master tools"
+                                    style={{
+                                        background: 'linear-gradient(45deg, #FF9800, #F57C00)',
+                                        border: '2px solid rgba(255, 152, 0, 0.3)'
+                                    }}
+                                >
+                                    🔄 PDF Master
                                 </button>
                             </div>
                         </div>
@@ -6255,9 +6312,37 @@ const generateFallbackPreview = () => {
                 {/* PDF Master Component */}
                 <PDFMaster 
                     isVisible={showPDFMaster}
+                    sharedFiles={finalizedFilesForPDF}
                     onClose={() => {
                         setShowPDFMaster(false);
                         setCurrentMode('cropper');
+                        setFinalizedFilesForPDF([]);
+                    }}
+                    onSwitchToCropper={(processedPages?: any[]) => {
+                        console.log('Switching from PDF Master to Cropper');
+                        
+                        if (processedPages && processedPages.length > 0) {
+                            console.log(`Loading ${processedPages.length} processed images from PDF Master into Cropper`);
+                            
+                            // Update both tabs state AND files state to ensure UI updates
+                            setTabs(prev => prev.map(tab => {
+                                if (tab.id === activeTabId) {
+                                    return {
+                                        ...tab,
+                                        files: [...tab.files, ...processedPages]
+                                    };
+                                }
+                                return tab;
+                            }));
+                            
+                            // Also update the active files state so Cropper renders immediately
+                            setFiles(prev => [...prev, ...processedPages]);
+                        }
+                        
+                        setCurrentMode('cropper');
+                        setShowPDFMaster(false);
+                        setShowMolView(false);
+                        setFinalizedFilesForPDF([]);
                     }}
                 />
 
