@@ -186,9 +186,11 @@ interface ProcessingJob {
 interface PDFMasterProps {
   isVisible: boolean;
   onClose: () => void;
+  sharedFiles?: any[];
+  onSwitchToCropper?: (processedPages?: any[]) => void;
 }
 
-export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose }) => {
+export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, sharedFiles = [], onSwitchToCropper }) => {
   // Tab-based session management - exactly like cropper
   const [sessions, setSessions] = useState<PDFSession[]>([{
     id: 'pdf-session-1',
@@ -1617,6 +1619,54 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose }) => {
     }, 5000);
   };
 
+  const exportProcessedPagesToFiles = async (): Promise<any[]> => {
+    if (pages.length === 0) {
+      return [];
+    }
+
+    const exportedFiles: any[] = [];
+
+    for (const page of pages) {
+      try {
+        if (page.imageData) {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d')!;
+          
+          canvas.width = page.width;
+          canvas.height = page.height;
+          
+          const img = new Image();
+          img.src = page.imageData;
+          await new Promise((resolve) => { img.onload = resolve; });
+          
+          ctx.save();
+          if (page.rotation !== 0) {
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            ctx.translate(centerX, centerY);
+            ctx.rotate((page.rotation * Math.PI) / 180);
+            ctx.translate(-centerX, -centerY);
+          }
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          ctx.restore();
+          
+          const finalImageDataURL = canvas.toDataURL('image/png', 1.0);
+          const response = await fetch(finalImageDataURL);
+          const blob = await response.blob();
+          const filename = page.name || `processed_${page.id}.png`;
+          const file = new File([blob], filename, { type: 'image/png' });
+          exportedFiles.push(file);
+        }
+      } catch (error) {
+        console.error(`Error exporting page ${page.id}:`, error);
+      }
+    }
+
+    return exportedFiles;
+  };
+
   const addNewSession = () => {
     const newSessionId = generateSessionId();
     const newSession: PDFSession = {
@@ -1671,6 +1721,67 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose }) => {
       saveCurrentSession();
     }
   }, [pages.length, activeSessionId]); // Use pages.length instead of pages, and remove saveCurrentSession
+
+  // Auto-load shared files from cropper when available - ALWAYS load when sharedFiles change
+  useEffect(() => {
+    if (sharedFiles && sharedFiles.length > 0 && isVisible) {
+      const convertSharedFilesToPages = async () => {
+        const jobId = addProcessingJob(activeSessionId, activeSession?.name || 'PDF Session', 'upload', sharedFiles.length);
+        
+        try {
+          const newPages: PDFPage[] = [];
+          
+          for (let i = 0; i < sharedFiles.length; i++) {
+            const file = sharedFiles[i];
+            updateProcessingJob(jobId, { 
+              progress: i, 
+              message: `Loading finalized image ${i + 1} of ${sharedFiles.length}...` 
+            });
+            
+            // Convert file to image data if it's not already
+            let imageData = file.src || file.data;
+            if (!imageData && file instanceof File) {
+              imageData = await new Promise<string>((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target?.result as string);
+                reader.readAsDataURL(file);
+              });
+            }
+            
+            if (imageData) {
+              const img = new Image();
+              img.onload = () => {
+                const newPage: PDFPage = {
+                  id: `shared-page-${Date.now()}-${i}`,
+                  name: file.name || `Image ${i + 1}`,
+                  imageData,
+                  originalImage: img,
+                  rotation: 0,
+                  crop: { x: 0, y: 0, width: img.width, height: img.height },
+                  order: i,
+                  width: img.width,
+                  height: img.height,
+                  isOriginal: true
+                };
+                newPages.push(newPage);
+                
+                if (newPages.length === sharedFiles.length) {
+                  setPages(newPages);
+                  completeProcessingJob(jobId, 'completed', `Successfully loaded ${sharedFiles.length} finalized images from cropper`);
+                }
+              };
+              img.src = imageData;
+            }
+          }
+        } catch (error) {
+          console.error('Error loading shared files:', error);
+          completeProcessingJob(jobId, 'error', 'Failed to load finalized images');
+        }
+      };
+      
+      convertSharedFilesToPages();
+    }
+  }, [sharedFiles, activeSessionId, activeSession?.name, isVisible]);
   
   // Initialize history when pages change
   useEffect(() => {
@@ -2373,6 +2484,28 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose }) => {
           >
             📁 Upload Folder
           </button>
+
+          {onSwitchToCropper && (
+            <button
+              onClick={async () => {
+                const processedPages = await exportProcessedPagesToFiles();
+                console.log(`Exporting ${processedPages.length} processed pages to Cropper`);
+                onSwitchToCropper(processedPages);
+              }}
+              style={{
+                background: 'linear-gradient(45deg, #4CAF50, #45a049)',
+                border: '2px solid rgba(76, 175, 80, 0.3)',
+                borderRadius: '8px',
+                padding: '10px 16px',
+                color: 'white',
+                cursor: 'pointer',
+                fontWeight: 'bold'
+              }}
+              title="Switch to Cropper tools"
+            >
+              🔄 Cropper Tools
+            </button>
+          )}
 
           <button
             onClick={onClose}
@@ -3612,6 +3745,31 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose }) => {
               >
                 📤 Share PDF
               </button>
+              
+              {/* Switch to Cropper Tools Button */}
+              {onSwitchToCropper && (
+                <button
+                  onClick={async () => {
+                    const processedPages = await exportProcessedPagesToFiles();
+                    console.log(`Exporting ${processedPages.length} processed pages to Cropper`);
+                    onSwitchToCropper(processedPages);
+                  }}
+                  style={{
+                    background: 'linear-gradient(45deg, #4CAF50, #45a049)',
+                    border: '2px solid rgba(76, 175, 80, 0.3)',
+                    borderRadius: '6px',
+                    padding: '8px 16px',
+                    color: 'white',
+                    cursor: 'pointer',
+                    fontWeight: 'bold',
+                    fontSize: '12px',
+                    marginLeft: '8px'
+                  }}
+                  title="Switch to Cropper tools - Apply changes and switch toolbox"
+                >
+                  🔄 Cropper Tools
+                </button>
+              )}
             </>
           )}
         </div>
