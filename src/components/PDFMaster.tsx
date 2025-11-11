@@ -665,10 +665,17 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
     setPages(allCircledPages.sort((a, b) => a.order - b.order));
   };
 
+  const generateEmojiNumber = (num: number): string => {
+    const emojiDigits = ['0️⃣', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣'];
+    return num.toString().split('').map(digit => emojiDigits[parseInt(digit)]).join('');
+  };
+
   const addMoreTags = () => {
-    const nextNumbers = ['2️⃣1️⃣', '2️⃣2️⃣', '2️⃣3️⃣', '2️⃣4️⃣', '2️⃣5️⃣', '2️⃣6️⃣', '2️⃣7️⃣', '2️⃣8️⃣', '2️⃣9️⃣', '3️⃣0️⃣'];
     const currentLength = availableTags.length;
-    const newTags = nextNumbers.slice(0, Math.min(10, 50 - currentLength));
+    const newTags: string[] = [];
+    for (let i = 0; i < 10; i++) {
+      newTags.push(generateEmojiNumber(currentLength + i + 1));
+    }
     setAvailableTags(prev => [...prev, ...newTags]);
   };
 
@@ -5074,23 +5081,20 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
             <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
               <button
                 onClick={addMoreTags}
-                disabled={availableTags.length >= 50}
                 style={{
-                  background: availableTags.length >= 50 
-                    ? 'linear-gradient(45deg, #666, #555)' 
-                    : 'linear-gradient(45deg, #2196F3, #1976D2)',
+                  background: 'linear-gradient(45deg, #2196F3, #1976D2)',
                   border: 'none',
                   borderRadius: '8px',
                   padding: '10px 16px',
                   color: 'white',
-                  cursor: availableTags.length >= 50 ? 'not-allowed' : 'pointer',
+                  cursor: 'pointer',
                   fontWeight: 'bold',
                   fontSize: '14px',
                   flex: 1,
-                  opacity: availableTags.length >= 50 ? 0.5 : 1
+                  opacity: 1
                 }}
               >
-                {availableTags.length >= 50 ? '🚫 Maximum tags reached' : '➕ Add More Tags'}
+                ➕ Add More Tags (Unlimited)
               </button>
               
               <button
@@ -5649,28 +5653,20 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
               </div>
 
               <button
-                onClick={() => {
-                  const nextNumbers = ['2️⃣1️⃣', '2️⃣2️⃣', '2️⃣3️⃣', '2️⃣4️⃣', '2️⃣5️⃣', '2️⃣6️⃣', '2️⃣7️⃣', '2️⃣8️⃣', '2️⃣9️⃣', '3️⃣0️⃣'];
-                  const currentLength = availableTags.length;
-                  const newTags = nextNumbers.slice(0, Math.min(10, 50 - currentLength));
-                  setAvailableTags(prev => [...prev, ...newTags]);
-                }}
-                disabled={availableTags.length >= 50}
+                onClick={addMoreTags}
                 style={{
-                  background: availableTags.length >= 50 
-                    ? 'linear-gradient(45deg, #666, #555)' 
-                    : 'linear-gradient(45deg, #2196F3, #1976D2)',
+                  background: 'linear-gradient(45deg, #2196F3, #1976D2)',
                   border: 'none',
                   borderRadius: '6px',
                   padding: '8px 16px',
                   color: 'white',
-                  cursor: availableTags.length >= 50 ? 'not-allowed' : 'pointer',
+                  cursor: 'pointer',
                   fontWeight: 'bold',
                   fontSize: '12px',
-                  opacity: availableTags.length >= 50 ? 0.5 : 1
+                  opacity: 1
                 }}
               >
-                {availableTags.length >= 50 ? '🚫 Max tags' : '➕ Add More Number Tags'}
+                ➕ Add More Number Tags (Unlimited)
               </button>
             </div>
 
