@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { PDFDocument } from 'pdf-lib';
 import * as pdfjs from 'pdfjs-dist';
+import { WindowManagerProvider, useWindowManager, FloatingWindow, MinimizedWindowBar } from './WindowManager';
+import { parseRangeInput, generateSequentialTags, groupRangesByTag } from '../utils/rangeParser';
 
 // Decorative Status Bar Buffer Component for PDF Master
 const StatusBarBuffer = () => {
@@ -261,6 +263,11 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
   const [selectedRangeTag, setSelectedRangeTag] = useState<string | null>(null);
   const [pageRangeInput, setPageRangeInput] = useState<string>('');
 
+  // Series Tag functionality
+  const [seriesTagModeEnabled, setSeriesTagModeEnabled] = useState(false);
+  const [seriesRangeInput, setSeriesRangeInput] = useState('');
+  const [seriesParseResult, setSeriesParseResult] = useState<{success: boolean, errors: string[]}>({success: true, errors: []});
+
   // Circling functionality
   interface CircleShape {
     id: string;
@@ -303,6 +310,56 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
   const groupTagsRef = useRef<HTMLDivElement>(null);
   const customNamesRef = useRef<HTMLDivElement>(null);
 
+  // Initialize windows for WindowManager
+  const windowManager = useWindowManager();
+
+  useEffect(() => {
+    // Create Group Tags window
+    windowManager.createWindow('groupTags', {
+      visible: false,
+      position: { x: 150, y: 150 },
+      size: { width: 400, height: 300 },
+      title: `Group Tags${selectedTag ? ` - Selected: ${selectedTag}` : ''}`,
+      icon: '🏷️'
+    });
+
+    // Create Custom Names window
+    windowManager.createWindow('customNames', {
+      visible: false,
+      position: { x: 200, y: 200 },
+      size: { width: 500, height: 400 },
+      title: 'Custom PDF Names',
+      icon: '✏️'
+    });
+
+    // Create Tag Page Range window
+    windowManager.createWindow('tagPageRange', {
+      visible: false,
+      position: { x: 250, y: 200 },
+      size: { width: 450, height: 400 },
+      title: `Add Tag Page Range${selectedRangeTag ? ` - Selected: ${selectedRangeTag}` : ''}`,
+      icon: '📄'
+    });
+
+    // Create Shape Selector window
+    windowManager.createWindow('shapeSelector', {
+      visible: false,
+      position: { x: 300, y: 150 },
+      size: { width: 450, height: 350 },
+      title: 'Shape Selector',
+      icon: '⭕'
+    });
+
+    // Create Rotate All window
+    windowManager.createWindow('rotateAll', {
+      visible: false,
+      position: { x: window.innerWidth / 2 - 200, y: window.innerHeight / 2 - 150 },
+      size: { width: 400, height: 300 },
+      title: 'Rotate All Pages',
+      icon: '🔄'
+    });
+  }, []); // Only run once on mount
+
   // Session management functions - exact same as cropper
   const generateSessionId = () => `pdf_session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
@@ -310,22 +367,50 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
   const toggleGroupMode = () => {
     if (!groupMode) {
       setGroupMode(true);
-      setShowGroupTags(true);
+      windowManager.updateWindow('groupTags', { visible: true });
     } else {
       setGroupMode(false);
-      setShowGroupTags(false);
+      windowManager.updateWindow('groupTags', { visible: false });
       setSelectedTag(null);
     }
+  };
+
+  const handleApplySeriesTags = () => {
+    const parseResult = parseRangeInput(seriesRangeInput);
+    setSeriesParseResult({ success: parseResult.success, errors: parseResult.errors });
+    
+    if (!parseResult.success) {
+      return;
+    }
+    
+    const grouped = groupRangesByTag(parseResult.ranges);
+    const newGroups = { ...pageGroups };
+    
+    // Apply series tags to pages based on their order
+    Object.entries(grouped).forEach(([tag, pageNumbers]) => {
+      pageNumbers.forEach(pageNum => {
+        const pageIndex = pageNum - 1; // Convert 1-based to 0-based
+        if (pageIndex >= 0 && pageIndex < pages.length) {
+          const page = pages[pageIndex];
+          newGroups[page.id] = tag;
+        }
+      });
+    });
+    
+    setPageGroups(newGroups);
+    setSeriesRangeInput('');
+    setSeriesTagModeEnabled(false);
+    alert(`Applied series tags to ${Object.keys(grouped).length} ranges`);
   };
 
   // Circling Mode Functions
   const toggleCirclingMode = () => {
     if (!circlingMode) {
       setCirclingMode(true);
-      setShowShapeSelector(true);
+      windowManager.updateWindow('shapeSelector', { visible: true });
     } else {
       setCirclingMode(false);
-      setShowShapeSelector(false);
+      windowManager.updateWindow('shapeSelector', { visible: false });
       setSelectedShape(null);
       setIsDrawingShape(false);
       setDrawingPageId(null);
@@ -827,7 +912,7 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
     });
     
     setCustomPDFNames(defaultNames);
-    setShowCustomNames(true);
+    windowManager.updateWindow('customNames', { visible: true });
   };
 
   const createGroupedPDFZip = async (useCustomNames: boolean = false) => {
@@ -918,7 +1003,7 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
       URL.revokeObjectURL(url);
       
       completeProcessingJob(jobId, 'completed', `✅ Created ${groupKeys.length} PDFs in ZIP file successfully!`);
-      setShowCustomNames(false);
+      windowManager.updateWindow('customNames', { visible: false });
       
     } catch (error) {
       console.error('Error creating grouped PDF ZIP:', error);
@@ -2409,18 +2494,18 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
   if (!isVisible) return null;
 
   return (
-    <div className="pdf-master" style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      width: '100vw',
-      height: '100vh',
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-      zIndex: 1000,
-      overflow: 'hidden',
-      display: 'flex',
-      flexDirection: 'column'
-    }}>
+      <div className="pdf-master" style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100vw',
+        height: '100vh',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        zIndex: 1000,
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column'
+      }}>
       {/* Status Bar Buffer - Always Present */}
       <StatusBarBuffer />
       
@@ -2738,97 +2823,99 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
       )}
 
       {/* RotateAll Modal */}
-      {showRotateAllModal && (
+      {windowManager.windows.rotateAll && windowManager.windows.rotateAll.visible && (
         <div style={{
           position: 'fixed',
           top: 0,
           left: 0,
           width: '100vw',
           height: '100vh',
-          background: 'rgba(0, 0, 0, 0.8)',
+          background: 'rgba(0, 0, 0, 0.7)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          zIndex: 2000
+          zIndex: 3000
         }}>
-          <div style={{
-            background: 'linear-gradient(135deg, rgba(0, 20, 40, 0.95), rgba(0, 40, 80, 0.9))',
-            border: '2px solid rgba(255, 165, 0, 0.3)',
-            borderRadius: '16px',
-            padding: '32px',
-            maxWidth: '400px',
-            width: '90%'
-          }}>
-            <h3 style={{ color: '#FFA500', textAlign: 'center', marginBottom: '24px' }}>
-              🔄 Rotate All Pages
-            </h3>
-            <p style={{ color: 'rgba(255, 255, 255, 0.8)', textAlign: 'center', marginBottom: '24px', fontSize: '14px' }}>
-              Choose rotation direction for all {pages.length} pages:
-            </p>
+          <FloatingWindow
+            id="rotateAll"
+            title="Rotate All Pages"
+            icon="🔄"
+            onClose={() => windowManager.updateWindow('rotateAll', { visible: false })}
+            headerColor="linear-gradient(45deg, #FFA500, #FF8C00)"
+            borderColor="#FFA500"
+            minWidth={400}
+            minHeight={300}
+            resizable={false}
+          >
+            <div style={{ padding: '24px' }}>
+              <p style={{ color: '#666', textAlign: 'center', marginBottom: '24px', fontSize: '14px' }}>
+                Choose rotation direction for all {pages.length} pages:
+              </p>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <button
-                onClick={() => {
-                  rotateAllPages('left');
-                  setShowRotateAllModal(false);
-                }}
-                style={{
-                  background: 'linear-gradient(45deg, #2196F3, #1976D2)',
-                  border: 'none',
-                  borderRadius: '12px',
-                  padding: '16px 24px',
-                  color: 'white',
-                  cursor: 'pointer',
-                  fontWeight: 'bold',
-                  fontSize: '16px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '12px'
-                }}
-              >
-                ↺ Rotate Left
-              </button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <button
+                  onClick={() => {
+                    rotateAllPages('left');
+                    windowManager.updateWindow('rotateAll', { visible: false });
+                  }}
+                  style={{
+                    background: 'linear-gradient(45deg, #2196F3, #1976D2)',
+                    border: 'none',
+                    borderRadius: '12px',
+                    padding: '16px 24px',
+                    color: 'white',
+                    cursor: 'pointer',
+                    fontWeight: 'bold',
+                    fontSize: '16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '12px'
+                  }}
+                >
+                  ↺ Rotate Left
+                </button>
 
-              <button
-                onClick={() => {
-                  rotateAllPages('right');
-                  setShowRotateAllModal(false);
-                }}
-                style={{
-                  background: 'linear-gradient(45deg, #4CAF50, #45a049)',
-                  border: 'none',
-                  borderRadius: '12px',
-                  padding: '16px 24px',
-                  color: 'white',
-                  cursor: 'pointer',
-                  fontWeight: 'bold',
-                  fontSize: '16px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '12px'
-                }}
-              >
-                ↻ Rotate Right
-              </button>
+                <button
+                  onClick={() => {
+                    rotateAllPages('right');
+                    windowManager.updateWindow('rotateAll', { visible: false });
+                  }}
+                  style={{
+                    background: 'linear-gradient(45deg, #4CAF50, #45a049)',
+                    border: 'none',
+                    borderRadius: '12px',
+                    padding: '16px 24px',
+                    color: 'white',
+                    cursor: 'pointer',
+                    fontWeight: 'bold',
+                    fontSize: '16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '12px'
+                  }}
+                >
+                  ↻ Rotate Right
+                </button>
 
-              <button
-                onClick={() => setShowRotateAllModal(false)}
-                style={{
-                  background: 'rgba(255, 255, 255, 0.1)',
-                  border: '1px solid rgba(255, 255, 255, 0.3)',
-                  borderRadius: '12px',
-                  padding: '12px 24px',
-                  color: 'white',
-                  cursor: 'pointer',
-                  fontSize: '14px'
-                }}
-              >
-                Cancel
-              </button>
+                <button
+                  onClick={() => windowManager.updateWindow('rotateAll', { visible: false })}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.1)',
+                    border: '1px solid rgba(255, 255, 255, 0.3)',
+                    borderRadius: '12px',
+                    padding: '12px 24px',
+                    color: '#666',
+                    cursor: 'pointer',
+                    fontSize: '14px'
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
-          </div>
+          </FloatingWindow>
         </div>
       )}
 
@@ -3057,7 +3144,7 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
                 {circlingMode ? '⭕ Circling ON' : '⭕ Circling'}
               </button>
               <button
-                onClick={() => setShowRotateAllModal(true)}
+                onClick={() => windowManager.updateWindow('rotateAll', { visible: true })}
                 style={{
                   background: 'rgba(255, 165, 0, 0.2)',
                   border: '1px solid rgba(255, 165, 0, 0.3)',
@@ -4978,69 +5065,19 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
       )}
 
       {/* Group Tags Floating Window */}
-      {showGroupTags && (
-        <div
-          ref={groupTagsRef}
-          style={{
-            position: 'fixed',
-            left: groupTagsPosition.x,
-            top: groupTagsPosition.y,
-            width: groupTagsSize.width,
-            height: groupTagsSize.height,
-            background: 'white',
-            border: '2px solid #9C27B0',
-            borderRadius: '12px',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
-            zIndex: 2000,
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-            resize: 'both',
-            minWidth: '350px',
-            minHeight: '250px'
-          }}
+      {windowManager.windows.groupTags && windowManager.windows.groupTags.visible && (
+        <FloatingWindow
+          id="groupTags"
+          title={`Group Tags${selectedTag ? ` - Selected: ${selectedTag}` : ''}`}
+          icon="🏷️"
+          onClose={() => windowManager.updateWindow('groupTags', { visible: false })}
+          headerColor="linear-gradient(45deg, #9C27B0, #7B1FA2)"
+          borderColor="#9C27B0"
+          minWidth={350}
+          minHeight={250}
+          resizable={true}
         >
-          {/* Draggable Header */}
-          <div 
-            style={{
-              background: 'linear-gradient(45deg, #9C27B0, #7B1FA2)',
-              color: 'white',
-              padding: '12px 16px',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              cursor: 'move',
-              borderRadius: '10px 10px 0 0'
-            }}
-            onMouseDown={handleGroupTagsDrag}
-          >
-            <span style={{ fontSize: '16px', fontWeight: 'bold' }}>
-              🏷️ Group Tags {selectedTag && `- Selected: ${selectedTag}`}
-            </span>
-            <button
-              onClick={() => setShowGroupTags(false)}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: 'white',
-                cursor: 'pointer',
-                fontSize: '18px',
-                padding: '0',
-                width: '24px',
-                height: '24px'
-              }}
-            >
-              ✕
-            </button>
-          </div>
-
-          {/* Content */}
-          <div style={{ 
-            flex: 1, 
-            padding: '16px',
-            overflow: 'auto',
-            background: '#f9f9f9'
-          }}>
+          <div style={{ padding: '16px' }}>
             <div style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fill, minmax(50px, 1fr))',
@@ -5119,7 +5156,7 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
               </button>
 
               <button
-                onClick={() => setShowTagPageRange(true)}
+                onClick={() => windowManager.updateWindow('tagPageRange', { visible: true })}
                 style={{
                   background: 'linear-gradient(45deg, #FF9800, #F57C00)',
                   border: 'none',
@@ -5133,6 +5170,25 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
                 title="Add Tag Page Range"
               >
                 📄 Add Tag Page Range
+              </button>
+
+              <button
+                onClick={() => setSeriesTagModeEnabled(!seriesTagModeEnabled)}
+                style={{
+                  background: seriesTagModeEnabled 
+                    ? 'linear-gradient(45deg, #4CAF50, #45a049)' 
+                    : 'linear-gradient(45deg, #9C27B0, #7B1FA2)',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '10px 16px',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  fontSize: '14px'
+                }}
+                title="Series Tag Mode"
+              >
+                {seriesTagModeEnabled ? '✓ Series Tag ON' : '🔢 Series Tag'}
               </button>
             </div>
 
@@ -5152,8 +5208,117 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
               4. Create different groups with different tags<br/>
               5. Use GroupZip to export separate PDFs for each group
             </div>
+
+            {/* Series Tag Mode UI */}
+            {seriesTagModeEnabled && (
+              <div style={{
+                marginTop: '16px',
+                padding: '16px',
+                background: 'white',
+                borderRadius: '8px',
+                border: '2px solid #9C27B0'
+              }}>
+                <div style={{
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                  color: '#9C27B0',
+                  marginBottom: '12px'
+                }}>
+                  🔢 Series Tag Mode
+                </div>
+                
+                <div style={{
+                  fontSize: '12px',
+                  color: '#666',
+                  marginBottom: '12px',
+                  lineHeight: '1.4'
+                }}>
+                  Enter page ranges separated by commas. Each range will be tagged with a sequential number.<br/>
+                  <strong>Example:</strong> 5–20, 21–27, 28–40, 41–51<br/>
+                  (Pages 5-20 get tag 1️⃣, pages 21-27 get tag 2️⃣, etc.)
+                </div>
+                
+                <textarea
+                  value={seriesRangeInput}
+                  onChange={(e) => {
+                    setSeriesRangeInput(e.target.value);
+                    setSeriesParseResult({success: true, errors: []});
+                  }}
+                  placeholder="Enter ranges: 5–20, 21–27, 28–40..."
+                  style={{
+                    width: '100%',
+                    minHeight: '80px',
+                    padding: '8px',
+                    border: '1px solid #ccc',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    fontFamily: 'monospace',
+                    marginBottom: '12px',
+                    resize: 'vertical'
+                  }}
+                />
+                
+                {!seriesParseResult.success && seriesParseResult.errors.length > 0 && (
+                  <div style={{
+                    background: 'rgba(244, 67, 54, 0.1)',
+                    border: '1px solid #f44336',
+                    borderRadius: '6px',
+                    padding: '8px',
+                    marginBottom: '12px',
+                    fontSize: '12px',
+                    color: '#d32f2f'
+                  }}>
+                    <strong>Errors:</strong>
+                    <ul style={{ margin: '4px 0 0 20px' }}>
+                      {seriesParseResult.errors.map((error, idx) => (
+                        <li key={idx}>{error}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    onClick={handleApplySeriesTags}
+                    style={{
+                      background: 'linear-gradient(45deg, #4CAF50, #45a049)',
+                      border: 'none',
+                      borderRadius: '8px',
+                      padding: '10px 16px',
+                      color: 'white',
+                      cursor: 'pointer',
+                      fontWeight: 'bold',
+                      fontSize: '14px',
+                      flex: 1
+                    }}
+                  >
+                    ✓ Apply Series Tags
+                  </button>
+                  
+                  <button
+                    onClick={() => {
+                      setSeriesTagModeEnabled(false);
+                      setSeriesRangeInput('');
+                      setSeriesParseResult({success: true, errors: []});
+                    }}
+                    style={{
+                      background: 'linear-gradient(45deg, #f44336, #d32f2f)',
+                      border: 'none',
+                      borderRadius: '8px',
+                      padding: '10px 16px',
+                      color: 'white',
+                      cursor: 'pointer',
+                      fontWeight: 'bold',
+                      fontSize: '14px'
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
-        </div>
+        </FloatingWindow>
       )}
 
       {/* Export Options Modal */}
@@ -5243,72 +5408,25 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
       )}
 
       {/* Custom Names Floating Window */}
-      {showCustomNames && (
-        <div
-          ref={customNamesRef}
-          style={{
-            position: 'fixed',
-            left: customNamesPosition.x,
-            top: customNamesPosition.y,
-            width: customNamesSize.width,
-            height: customNamesSize.height,
-            background: 'white',
-            border: '2px solid #FF9800',
-            borderRadius: '12px',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
-            zIndex: 2000,
+      {windowManager.windows.customNames && windowManager.windows.customNames.visible && (
+        <FloatingWindow
+          id="customNames"
+          title="Custom PDF Names"
+          icon="✏️"
+          onClose={() => windowManager.updateWindow('customNames', { visible: false })}
+          headerColor="linear-gradient(45deg, #FF9800, #F57C00)"
+          borderColor="#FF9800"
+          minWidth={450}
+          minHeight={350}
+          resizable={true}
+        >
+          <div style={{ 
+            padding: '16px',
             display: 'flex',
             flexDirection: 'column',
-            overflow: 'hidden',
-            resize: 'both',
-            minWidth: '450px',
-            minHeight: '350px'
-          }}
-        >
-          {/* Draggable Header */}
-          <div 
-            style={{
-              background: 'linear-gradient(45deg, #FF9800, #F57C00)',
-              color: 'white',
-              padding: '12px 16px',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              cursor: 'move',
-              borderRadius: '10px 10px 0 0'
-            }}
-            onMouseDown={handleCustomNamesDrag}
-          >
-            <span style={{ fontSize: '16px', fontWeight: 'bold' }}>
-              ✏️ Custom PDF Names
-            </span>
-            <button
-              onClick={() => setShowCustomNames(false)}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: 'white',
-                cursor: 'pointer',
-                fontSize: '18px',
-                padding: '0',
-                width: '24px',
-                height: '24px'
-              }}
-            >
-              ✕
-            </button>
-          </div>
-
-          {/* Content */}
-          <div style={{ 
-            flex: 1, 
-            padding: '16px',
-            overflow: 'auto',
-            background: '#f9f9f9',
-            display: 'flex',
-            flexDirection: 'column'
+            height: '100%'
           }}>
-            <div style={{ flex: 1, marginBottom: '16px' }}>
+            <div style={{ flex: 1, marginBottom: '16px', overflowY: 'auto' }}>
               {Object.entries(customPDFNames).map(([tag, name], index) => (
                 <div key={tag} style={{
                   display: 'flex',
@@ -5394,71 +5512,24 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
               📦 Final ZIP Export
             </button>
           </div>
-        </div>
+        </FloatingWindow>
       )}
 
       {/* Shape Selector Floating Window */}
-      {showShapeSelector && (
-        <div
-          style={{
-            position: 'fixed',
-            left: shapeSelectorPosition.x,
-            top: shapeSelectorPosition.y,
-            width: shapeSelectorSize.width,
-            height: shapeSelectorSize.height,
-            background: 'white',
-            border: '2px solid #E91E63',
-            borderRadius: '12px',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
-            zIndex: 2000,
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-            resize: 'both',
-            minWidth: '400px',
-            minHeight: '300px'
-          }}
+      {windowManager.windows.shapeSelector && windowManager.windows.shapeSelector.visible && (
+        <FloatingWindow
+          id="shapeSelector"
+          title="Shape Selector"
+          icon="⭕"
+          onClose={() => windowManager.updateWindow('shapeSelector', { visible: false })}
+          headerColor="linear-gradient(45deg, #E91E63, #C2185B)"
+          borderColor="#E91E63"
+          minWidth={450}
+          minHeight={350}
+          resizable={true}
         >
-          {/* Draggable Header */}
-          <div 
-            style={{
-              background: 'linear-gradient(45deg, #E91E63, #C2185B)',
-              color: 'white',
-              padding: '12px 16px',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              cursor: 'move',
-              borderRadius: '10px 10px 0 0'
-            }}
-            onMouseDown={handleShapeSelectorDrag}
-          >
-            <span style={{ fontSize: '16px', fontWeight: 'bold' }}>
-              ⭕ Shape Selector {selectedShape && `- Selected: ${availableShapes.find(s => s.type === selectedShape)?.name}`}
-            </span>
-            <button
-              onClick={() => setShowShapeSelector(false)}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: 'white',
-                cursor: 'pointer',
-                fontSize: '18px',
-                padding: '0',
-                width: '24px',
-                height: '24px'
-              }}
-            >
-              ✕
-            </button>
-          </div>
-
-          {/* Content */}
           <div style={{ 
-            flex: 1, 
-            padding: '16px',
-            overflow: 'auto',
-            background: '#f9f9f9'
+            padding: '16px'
           }}>
             <div style={{
               display: 'grid',
@@ -5542,71 +5613,24 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
               6. Use "Apply to All" checkbox to apply to all pages
             </div>
           </div>
-        </div>
+        </FloatingWindow>
       )}
 
       {/* Tag Page Range Floating Window */}
-      {showTagPageRange && (
-        <div
-          style={{
-            position: 'fixed',
-            left: tagPageRangePosition.x,
-            top: tagPageRangePosition.y,
-            width: tagPageRangeSize.width,
-            height: tagPageRangeSize.height,
-            background: 'white',
-            border: '2px solid #FF9800',
-            borderRadius: '12px',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
-            zIndex: 2000,
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-            resize: 'both',
-            minWidth: '400px',
-            minHeight: '350px'
-          }}
+      {windowManager.windows.tagPageRange && windowManager.windows.tagPageRange.visible && (
+        <FloatingWindow
+          id="tagPageRange"
+          title={`Add Tag Page Range${selectedRangeTag ? ` - Selected: ${selectedRangeTag}` : ''}`}
+          icon="📄"
+          onClose={() => windowManager.updateWindow('tagPageRange', { visible: false })}
+          headerColor="linear-gradient(45deg, #FF9800, #F57C00)"
+          borderColor="#FF9800"
+          minWidth={450}
+          minHeight={400}
+          resizable={true}
         >
-          {/* Draggable Header */}
-          <div 
-            style={{
-              background: 'linear-gradient(45deg, #FF9800, #F57C00)',
-              color: 'white',
-              padding: '12px 16px',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              cursor: 'move',
-              borderRadius: '10px 10px 0 0'
-            }}
-            onMouseDown={handleTagPageRangeDrag}
-          >
-            <span style={{ fontSize: '16px', fontWeight: 'bold' }}>
-              📄 Add Tag Page Range {selectedRangeTag && `- Selected: ${selectedRangeTag}`}
-            </span>
-            <button
-              onClick={() => setShowTagPageRange(false)}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: 'white',
-                cursor: 'pointer',
-                fontSize: '18px',
-                padding: '0',
-                width: '24px',
-                height: '24px'
-              }}
-            >
-              ✕
-            </button>
-          </div>
-
-          {/* Content */}
           <div style={{ 
-            flex: 1, 
-            padding: '16px',
-            overflow: 'auto',
-            background: '#f9f9f9'
+            padding: '16px'
           }}>
             {/* Tags Selection */}
             <div style={{ marginBottom: '20px' }}>
@@ -5738,8 +5762,10 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
               6. You can mix single pages and ranges (e.g., 1,3,5-8,10-12)
             </div>
           </div>
-        </div>
+        </FloatingWindow>
       )}
+
+      <MinimizedWindowBar />
     </div>
   );
 };
