@@ -8,6 +8,7 @@ import EffectFilters from "../component/EffectFilters";
 import QualityPanel from "../component/QualityPanel";
 import A2HSButton from "../A2HSButton";
 import { PDFMaster } from "../components/PDFMaster";
+import { WindowManagerProvider } from "../components/WindowManager";
 import { MolView } from "../components/MolView";
 // import { VirtualKeyboard, FloatingKeyboardButton } from "../components/VirtualKeyboard";
 
@@ -70,7 +71,7 @@ const drawRoundedRect = (
     radius: number
 ) => {
     ctx.beginPath();
-    
+
     // Fallback for older browsers that don't support roundRect
     if (typeof (ctx as any).roundRect === 'function') {
         (ctx as any).roundRect(x, y, width, height, radius);
@@ -82,7 +83,7 @@ const drawRoundedRect = (
         ctx.arcTo(x, y + height, x, y, radius);
         ctx.arcTo(x, y, x + width, y, radius);
     }
-    
+
     ctx.closePath();
 };
 
@@ -193,7 +194,7 @@ const StatusBarBuffer = () => {
                 borderRadius: '50%',
                 animation: 'float 3s ease-in-out infinite'
             }} />
-            
+
             <div style={{
                 position: 'absolute',
                 top: '20px',
@@ -251,7 +252,7 @@ const StatusBarBuffer = () => {
                         filter: 'drop-shadow(0 0 8px rgba(0, 255, 255, 0.8))'
                     }}>✨</span>
                 </div>
-                
+
                 <div style={{
                     color: '#00ffff',
                     fontFamily: "'Orbitron', monospace",
@@ -263,7 +264,7 @@ const StatusBarBuffer = () => {
                 }}>
                     Smart Image Cropper
                 </div>
-                
+
                 <div style={{
                     width: '50px',
                     height: '50px',
@@ -301,7 +302,7 @@ const StatusBarBuffer = () => {
                 borderBottom: 'none',
                 borderRadius: '3px 0 0 0'
             }} />
-            
+
             <div style={{
                 position: 'absolute',
                 bottom: '10px',
@@ -807,7 +808,7 @@ function Main({ appName, aboutText } :any) {
     const [showPDFMaster, setShowPDFMaster] = useState(false);
     const [showMolView, setShowMolView] = useState(false);
     const [finalizedFilesForPDF, setFinalizedFilesForPDF] = useState<any[]>([]);
-    
+
     // Virtual Keyboard
     // Virtual keyboard state variables removed since keyboard is disabled
 
@@ -979,7 +980,7 @@ function Main({ appName, aboutText } :any) {
 
     const [activeElement, setActiveElement] = useState<{ type: 'watermark' | 'signature' | null; id: string | null }>({ type: null, id: null });
     const [selectedElementForEdit, setSelectedElementForEdit] = useState<{ type: 'watermark' | 'signature' | null; id: string | null }>({ type: null, id: null });
-    
+
     // Control panel state
     const [showControlPanel, setShowControlPanel] = useState<boolean>(false);
     const [controlPanelPosition, setControlPanelPosition] = useState({ x: 50, y: 50 });
@@ -1420,7 +1421,7 @@ function Main({ appName, aboutText } :any) {
 
         ctx.save();
         ctx.lineWidth = borderWidth;
-        
+
         const x = borderWidth / 2;
         const y = borderWidth / 2;
         const width = canvas.width - borderWidth;
@@ -1445,7 +1446,7 @@ function Main({ appName, aboutText } :any) {
             }
         } else {
             ctx.strokeStyle = borderColor;
-            
+
             // Apply border style effects
             if (borderStyle === 'dashed') {
                 ctx.setLineDash([borderWidth * 2, borderWidth]);
@@ -1469,14 +1470,14 @@ function Main({ appName, aboutText } :any) {
                 ctx.restore();
                 return;
             }
-            
+
             if (radius > 0) {
                 drawRoundedRect(ctx, x, y, width, height, radius);
                 ctx.stroke();
             } else {
                 ctx.strokeRect(x, y, width, height);
             }
-            
+
             // Reset line dash for other elements
             ctx.setLineDash([]);
         }
@@ -1775,14 +1776,14 @@ function Main({ appName, aboutText } :any) {
     const handleElementClick = (type: 'watermark' | 'signature', id: string, event: React.MouseEvent) => {
         event.preventDefault();
         event.stopPropagation();
-        
+
         // Save element state before making changes
         saveElementHistory(type, id);
-        
+
         setSelectedElement({ type, id });
         setActiveElement({ type, id });
         setShowControlPanel(true);
-        
+
         // Position control panel near the clicked element
         const rect = event.currentTarget.getBoundingClientRect();
         setControlPanelPosition({
@@ -2744,11 +2745,11 @@ const generateFallbackPreview = () => {
         for (const key of cropKeys) {
             const index = parseInt(key);
             const crop = crops[index];
-            
+
             if (crop && crop.width && crop.height) {
                 try {
                     const enhancedImage = await generateEnhancedCroppedImage(crop, index);
-                    
+
                     if (enhancedImage.dataUrl) {
                         const response = await fetch(enhancedImage.dataUrl);
                         const blob = await response.blob();
@@ -3339,7 +3340,7 @@ const generateFallbackPreview = () => {
         }}>
             {/* Status Bar Buffer - Always Present Global Header */}
             <StatusBarBuffer />
-            
+
             <>
                 {/* Tab Bar */}
                 <div style={{
@@ -3492,7 +3493,7 @@ const generateFallbackPreview = () => {
                                 const finalized = await finalizeAllImagesForPDFMaster();
                                 setFinalizedFilesForPDF(finalized);
                                 console.log(`Finalized ${finalized.length} images with all effects before switching to PDF Master`);
-                                
+
                                 setCurrentMode('pdfmaster');
                                 setShowPDFMaster(true);
                                 setShowMolView(false);
@@ -3536,7 +3537,7 @@ const generateFallbackPreview = () => {
                             🧪 MolView
                         </button>
                     </div>
-                    
+
                     {currentMode === 'cropper' && (
                         <div style={{ display: "flex", gap: "8px" }}>
                             <button
@@ -3809,7 +3810,7 @@ const generateFallbackPreview = () => {
                                         const finalized = await finalizeAllImagesForPDFMaster();
                                         setFinalizedFilesForPDF(finalized);
                                         console.log(`Finalized ${finalized.length} images with all effects before switching to PDF Master`);
-                                        
+
                                         setCurrentMode('pdfmaster');
                                         setShowPDFMaster(true);
                                         setShowMolView(false);
@@ -4364,10 +4365,10 @@ const generateFallbackPreview = () => {
                                     }}
                                     onMouseDown={(e) => {
                                         if (!watermark.isMovable || e.button !== 0) return;
-                                        
+
                                         e.preventDefault();
                                         e.stopPropagation();
-                                        
+
                                         const container = e.currentTarget.parentElement!;
                                         const rect = container.getBoundingClientRect();
                                         const startX = e.clientX;
@@ -4377,12 +4378,12 @@ const generateFallbackPreview = () => {
                                         const handleMouseMove = (e: MouseEvent) => {
                                             const deltaX = ((e.clientX - startX) / rect.width) * 100;
                                             const deltaY = ((e.clientY - startY) / rect.height) * 100;
-                                            
+
                                             const newPos = {
                                                 x: Math.max(5, Math.min(95, startPos.x + deltaX)),
                                                 y: Math.max(5, Math.min(95, startPos.y + deltaY))
                                             };
-                                            
+
                                             updateWatermark(watermark.id, { position: newPos });
                                         };
 
@@ -4415,7 +4416,7 @@ const generateFallbackPreview = () => {
                                             {watermark.text || 'Watermark'}
                                         </span>
                                     )}
-                                    
+
                                     {/* Control Point */}
                                     <div 
                                         style={{
@@ -4443,7 +4444,7 @@ const generateFallbackPreview = () => {
                                     >
                                         W
                                     </div>
-                                    
+
                                     {/* Selection indicator */}
                                     {selectedElement.type === 'watermark' && selectedElement.id === watermark.id && (
                                         <div style={{
@@ -4488,10 +4489,10 @@ const generateFallbackPreview = () => {
                                     }}
                                     onMouseDown={(e) => {
                                         if (!signature.isMovable || e.button !== 0) return;
-                                        
+
                                         e.preventDefault();
                                         e.stopPropagation();
-                                        
+
                                         const container = e.currentTarget.parentElement!;
                                         const rect = container.getBoundingClientRect();
                                         const startX = e.clientX;
@@ -4501,12 +4502,12 @@ const generateFallbackPreview = () => {
                                         const handleMouseMove = (e: MouseEvent) => {
                                             const deltaX = ((e.clientX - startX) / rect.width) * 100;
                                             const deltaY = ((e.clientY - startY) / rect.height) * 100;
-                                            
+
                                             const newPos = {
                                                 x: Math.max(5, Math.min(95, startPos.x + deltaX)),
                                                 y: Math.max(5, Math.min(95, startPos.y + deltaY))
                                             };
-                                            
+
                                             updateSignature(signature.id, { position: newPos });
                                         };
 
@@ -4539,7 +4540,7 @@ const generateFallbackPreview = () => {
                                             {signature.text || 'Signature'}
                                         </span>
                                     )}
-                                    
+
                                     {/* Control Point */}
                                     <div 
                                         style={{
@@ -4567,7 +4568,7 @@ const generateFallbackPreview = () => {
                                     >
                                         S
                                     </div>
-                                    
+
                                     {/* Selection indicator */}
                                     {selectedElement.type === 'signature' && selectedElement.id === signature.id && (
                                         <div style={{
@@ -6310,41 +6311,43 @@ const generateFallbackPreview = () => {
                 )}
 
                 {/* PDF Master Component */}
-                <PDFMaster 
-                    isVisible={showPDFMaster}
-                    sharedFiles={finalizedFilesForPDF}
-                    onClose={() => {
-                        setShowPDFMaster(false);
-                        setCurrentMode('cropper');
-                        setFinalizedFilesForPDF([]);
-                    }}
-                    onSwitchToCropper={(processedPages?: any[]) => {
-                        console.log('Switching from PDF Master to Cropper');
-                        
-                        if (processedPages && processedPages.length > 0) {
-                            console.log(`Loading ${processedPages.length} processed images from PDF Master into Cropper`);
-                            
-                            // Update both tabs state AND files state to ensure UI updates
-                            setTabs(prev => prev.map(tab => {
-                                if (tab.id === activeTabId) {
-                                    return {
-                                        ...tab,
-                                        files: [...tab.files, ...processedPages]
-                                    };
-                                }
-                                return tab;
-                            }));
-                            
-                            // Also update the active files state so Cropper renders immediately
-                            setFiles(prev => [...prev, ...processedPages]);
-                        }
-                        
-                        setCurrentMode('cropper');
-                        setShowPDFMaster(false);
-                        setShowMolView(false);
-                        setFinalizedFilesForPDF([]);
-                    }}
-                />
+                <WindowManagerProvider>
+                    <PDFMaster 
+                        isVisible={showPDFMaster}
+                        sharedFiles={finalizedFilesForPDF}
+                        onClose={() => {
+                            setShowPDFMaster(false);
+                            setCurrentMode('cropper');
+                            setFinalizedFilesForPDF([]);
+                        }}
+                        onSwitchToCropper={(processedPages?: any[]) => {
+                            console.log('Switching from PDF Master to Cropper');
+
+                            if (processedPages && processedPages.length > 0) {
+                                console.log(`Loading ${processedPages.length} processed images from PDF Master into Cropper`);
+
+                                // Update both tabs state AND files state to ensure UI updates
+                                setTabs(prev => prev.map(tab => {
+                                    if (tab.id === activeTabId) {
+                                        return {
+                                            ...tab,
+                                            files: [...tab.files, ...processedPages]
+                                        };
+                                    }
+                                    return tab;
+                                }));
+
+                                // Also update the active files state so Cropper renders immediately
+                                setFiles(prev => [...prev, ...processedPages]);
+                            }
+
+                            setCurrentMode('cropper');
+                            setShowPDFMaster(false);
+                            setShowMolView(false);
+                            setFinalizedFilesForPDF([]);
+                        }}
+                    />
+                </WindowManagerProvider>
 
                 {/* MolView Component */}
                 <MolView 
