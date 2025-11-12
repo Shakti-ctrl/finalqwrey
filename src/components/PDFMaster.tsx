@@ -229,8 +229,7 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
   const isCurrentSessionProcessing = currentSessionJobs.some(job => job.status === 'processing');
   const globalProcessingStatus = processingJobs.find(job => job.status === 'processing')?.message || '';
 
-  // Exact same floating and zoom functionality as cropper
-  const [floatingPages, setFloatingPages] = useState<{[key: string]: {visible: boolean, position: {x: number, y: number}, size: {width: number, height: number}}}>({});
+  // Zoom and rearrange functionality
   const [zoomedPages, setZoomedPages] = useState<Set<string>>(new Set());
   const [rearrangeMode, setRearrangeMode] = useState(false);
 
@@ -305,7 +304,6 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
-  const floatingRefs = useRef<{[key: string]: HTMLDivElement}>({});
   const canvasRefs = useRef<{[key: string]: HTMLCanvasElement}>({});
   const groupTagsRef = useRef<HTMLDivElement>(null);
   const customNamesRef = useRef<HTMLDivElement>(null);
@@ -357,6 +355,17 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
       size: { width: 400, height: 300 },
       title: 'Rotate All Pages',
       icon: '🔄'
+    });
+
+    // Create floating page windows for each page
+    pages.forEach((page, index) => {
+      windowManager.createWindow(`floatingPage_${page.id}`, {
+        visible: false,
+        position: { x: 100 + (index * 30), y: 100 + (index * 30) },
+        size: { width: 400, height: 500 },
+        title: `Page ${index + 1}`,
+        icon: '🎈'
+      });
     });
   }, []); // Only run once on mount
 
@@ -1670,7 +1679,13 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
       setActiveSessionId(sessionId);
       setPages(session.pages);
       setSelectedPages(new Set());
-      setFloatingPages({});
+      // Close all floating page windows
+      pages.forEach(page => {
+        const windowId = `floatingPage_${page.id}`;
+        if (windowManager.windows[windowId]) {
+          windowManager.updateWindow(windowId, { visible: false });
+        }
+      });
       setZoomedPages(new Set());
       setRearrangeMode(false);
     }
@@ -2416,34 +2431,30 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
     setSelectedPages(new Set());
   };
 
-  // Floating functionality - EXACT same as cropper
+  // Floating functionality - using WindowManager
   const toggleFloating = (pageId: string) => {
-    setFloatingPages(prev => {
-      const isCurrentlyFloating = prev[pageId]?.visible || false;
-
-      if (isCurrentlyFloating) {
-        return {
-          ...prev,
-          [pageId]: { ...prev[pageId], visible: false }
-        };
-      } else {
-        return {
-          ...prev,
-          [pageId]: {
-            visible: true,
-            position: { x: 100 + Math.random() * 200, y: 100 + Math.random() * 200 },
-            size: { width: 400, height: 500 }
-          }
-        };
-      }
-    });
+    const windowId = `floatingPage_${pageId}`;
+    
+    // Create window if it doesn't exist
+    if (!windowManager.windows[windowId]) {
+      const pageIndex = pages.findIndex(p => p.id === pageId);
+      windowManager.createWindow(windowId, {
+        visible: true,
+        position: { x: 100 + Math.random() * 200, y: 100 + Math.random() * 200 },
+        size: { width: 400, height: 500 },
+        title: `Page ${pageIndex + 1}`,
+        icon: '🎈'
+      });
+    } else {
+      // Toggle visibility
+      const currentWindow = windowManager.windows[windowId];
+      windowManager.updateWindow(windowId, { visible: !currentWindow.visible });
+    }
   };
 
   const closeFloatingPage = (pageId: string) => {
-    setFloatingPages(prev => ({
-      ...prev,
-      [pageId]: { ...prev[pageId], visible: false }
-    }));
+    const windowId = `floatingPage_${pageId}`;
+    windowManager.updateWindow(windowId, { visible: false });
   };
 
   const toggleZoom = (pageId: string) => {
@@ -2458,38 +2469,7 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
     });
   };
 
-  // Drag functionality for floating windows
-  const handleMouseDown = (pageId: string, e: React.MouseEvent) => {
-    const floatingEl = floatingRefs.current[pageId];
-    if (!floatingEl) return;
-
-    const startX = e.clientX;
-    const startY = e.clientY;
-    const rect = floatingEl.getBoundingClientRect();
-    const offsetX = startX - rect.left;
-    const offsetY = startY - rect.top;
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const newX = e.clientX - offsetX;
-      const newY = e.clientY - offsetY;
-
-      setFloatingPages(prev => ({
-        ...prev,
-        [pageId]: {
-          ...prev[pageId],
-          position: { x: Math.max(0, newX), y: Math.max(0, newY) }
-        }
-      }));
-    };
-
-    const handleMouseUp = () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  };
+  
 
   if (!isVisible) return null;
 
@@ -3946,7 +3926,10 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
       <div style={{
         flex: 1,
         overflow: 'auto',
-        padding: '24px'
+        padding: '24px',
+        touchAction: (splitMode || circlingMode) ? 'none' : 'auto',
+        userSelect: (splitMode || circlingMode) ? 'none' : 'auto',
+        WebkitUserSelect: (splitMode || circlingMode) ? 'none' : 'auto'
       }}>
         {pages.length === 0 ? (
           <div style={{
@@ -4248,7 +4231,8 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
                           zIndex: 250,
                           border: (splitMode || circlingMode) ? '2px dashed rgba(255, 0, 0, 0.5)' : 'none',
                           background: (splitMode || circlingMode) ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-                          pointerEvents: (splitMode || circlingMode) ? 'auto' : 'none'
+                          pointerEvents: (splitMode || circlingMode) ? 'auto' : 'none',
+                          touchAction: (splitMode || circlingMode) ? 'none' : 'auto'
                         }}
                         onMouseDown={(e) => {
                           if (splitMode) {
@@ -4256,7 +4240,6 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
                           } else if (circlingMode && selectedShape) {
                             startDrawingShape(page.id, e);
                           } else if (circlingMode && !selectedShape) {
-                            // Check if clicking on existing shape to select it
                             const canvas = canvasRefs.current[page.id];
                             if (canvas) {
                               const rect = canvas.getBoundingClientRect();
@@ -4287,20 +4270,46 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
                             }
                           }
                         }}
+                        onTouchStart={(e) => {
+                          e.preventDefault();
+                          const touch = e.touches[0];
+                          const mouseEvent = new MouseEvent('mousedown', {
+                            clientX: touch.clientX,
+                            clientY: touch.clientY,
+                            bubbles: true
+                          });
+                          e.currentTarget.dispatchEvent(mouseEvent);
+                        }}
                         onMouseMove={(e) => {
                           if (splitMode) continueDrawingSplitLine(page.id, e);
                           if (circlingMode && selectedShape) continueDrawingShape(page.id, e);
                         }}
+                        onTouchMove={(e) => {
+                          e.preventDefault();
+                          const touch = e.touches[0];
+                          const mouseEvent = new MouseEvent('mousemove', {
+                            clientX: touch.clientX,
+                            clientY: touch.clientY,
+                            bubbles: true
+                          });
+                          e.currentTarget.dispatchEvent(mouseEvent);
+                        }}
                         onMouseUp={() => {
                           if (splitMode) finishDrawingSplitLine();
                           if (circlingMode && selectedShape) finishDrawingShape();
+                        }}
+                        onTouchEnd={(e) => {
+                          e.preventDefault();
+                          const mouseEvent = new MouseEvent('mouseup', {
+                            bubbles: true
+                          });
+                          e.currentTarget.dispatchEvent(mouseEvent);
                         }}
                         onMouseLeave={() => {
                           if (splitMode) finishDrawingSplitLine();
                           if (circlingMode && selectedShape) finishDrawingShape();
                         }}
                         onClick={(e) => {
-                          // Clear selection when clicking empty area
                           if (circlingMode && !selectedShape) {
                             const canvas = canvasRefs.current[page.id];
                             if (canvas) {
@@ -4748,7 +4757,7 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
                             toggleFloating(page.id);
                           }}
                           style={{
-                            background: floatingPages[page.id]?.visible ? "#f44336" : "#2196F3",
+                            background: windowManager.windows[`floatingPage_${page.id}`]?.visible ? "#f44336" : "#2196F3",
                             color: "white",
                             border: "none",
                             padding: "6px 10px",
@@ -4760,9 +4769,10 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
                             justifyContent: "center",
                             width: "40px",
                             height: "40px",
-                            boxShadow: "0 3px 8px rgba(0,0,0,0.4)"
+                            boxShadow: "0 3px 8px rgba(0,0,0,0.4)",
+                            touchAction: 'manipulation'
                           }}
-                          title={floatingPages[page.id]?.visible ? "Close floating view" : "Open floating view"}
+                          title={windowManager.windows[`floatingPage_${page.id}`]?.visible ? "Close floating view" : "Open floating view"}
                         >
                           🎈
                         </button>
@@ -4826,143 +4836,65 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
         onChange={handlePDFUpload}
       />
 
-      {/* Floating Pages Windows - EXACT same functionality as cropper */}
-      {Object.entries(floatingPages).map(([pageId, data]) =>
-        data.visible && (
-          <div
-            key={`floating-${pageId}`}
-            ref={(el) => {
-              if (el) floatingRefs.current[pageId] = el;
-            }}
-            style={{
-              position: 'fixed',
-              left: data.position.x,
-              top: data.position.y,
-              width: data.size.width,
-              height: data.size.height,
-              background: 'white',
-              border: '2px solid #28a745',
-              borderRadius: '8px',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-              zIndex: 1001,
+      {/* Floating Pages Windows - Using WindowManager */}
+      {pages.map((page, index) => {
+        const windowId = `floatingPage_${page.id}`;
+        const windowState = windowManager.windows[windowId];
+        
+        if (!windowState || !windowState.visible) return null;
+        
+        return (
+          <FloatingWindow
+            key={windowId}
+            id={windowId}
+            title={`Page ${index + 1}`}
+            icon="🎈"
+            onClose={() => closeFloatingPage(page.id)}
+            headerColor="linear-gradient(45deg, #28a745, #218838)"
+            borderColor="#28a745"
+            minWidth={300}
+            minHeight={200}
+            resizable={true}
+          >
+            <div style={{
+              flex: 1,
               display: 'flex',
               flexDirection: 'column',
-              overflow: 'hidden',
-              minWidth: '300px',
-              minHeight: '200px'
-            }}
-          >
-            {/* Draggable Header */}
-            <div 
-              style={{
-                background: '#28a745',
-                color: 'white',
-                padding: '8px 12px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                cursor: 'move'
-              }}
-              onMouseDown={(e) => handleMouseDown(pageId, e)}
-            >
-              <span style={{ fontSize: '14px', fontWeight: 'bold' }}>
-                Floating Page {pages.findIndex(p => p.id === pageId) + 1}
-              </span>
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setFloatingPages(prev => ({
-                      ...prev,
-                      [pageId]: {
-                        ...prev[pageId],
-                        position: { x: 0, y: 0 },
-                        size: { width: window.innerWidth, height: window.innerHeight }
-                      }
-                    }));
-                  }}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'white',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    padding: '0',
-                    width: '20px',
-                    height: '20px'
-                  }}
-                  title="Maximize to full screen"
-                >
-                  ⛶
-                </button>
-                <button
-                  onClick={() => closeFloatingPage(pageId)}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'white',
-                    cursor: 'pointer',
-                    fontSize: '16px',
-                    padding: '0',
-                    width: '20px',
-                    height: '20px'
-                  }}
-                >
-                  ×
-                </button>
-              </div>
-            </div>
-
-            {/* Content */}
-            <div style={{ 
-              flex: 1, 
-              overflow: 'hidden', 
-              display: 'flex', 
-              flexDirection: 'column',
-              background: '#f9f9f9'
+              height: '100%'
             }}>
-              {(() => {
-                const page = pages.find(p => p.id === pageId);
-                if (!page) return <div>Page not found</div>;
+              <div style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '10px',
+                background: '#f9f9f9'
+              }}>
+                <img
+                  src={page.imageData}
+                  alt={page.name}
+                  style={{
+                    maxWidth: '100%',
+                    maxHeight: '100%',
+                    objectFit: 'contain',
+                    transform: `rotate(${page.rotation}deg) ${zoomedPages.has(page.id) ? 'scale(1.3)' : 'scale(1)'}`,
+                    transition: 'transform 0.3s ease',
+                    borderRadius: '4px',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                  }}
+                />
+              </div>
 
-                return (
-                  <div style={{
-                    flex: 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: '10px'
-                  }}>
-                    <img
-                      src={page.imageData}
-                      alt={page.name}
-                      style={{
-                        maxWidth: '100%',
-                        maxHeight: '100%',
-                        objectFit: 'contain',
-                        transform: `rotate(${page.rotation}deg) ${zoomedPages.has(pageId) ? 'scale(1.3)' : 'scale(1)'}`,
-                        transition: 'transform 0.3s ease',
-                        borderRadius: '4px',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-                      }}
-                    />
-                  </div>
-                );
-              })()}
-
-              {/* Control buttons - same as cropper */}
-              <div style={{ 
-                display: 'flex', 
-                justifyContent: 'space-around', 
-                padding: '8px', 
+              {/* Control buttons */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-around',
+                padding: '8px',
                 background: '#f0f0f0',
                 borderTop: '1px solid #ddd'
               }}>
                 <button
-                  onClick={() => {
-                    const page = pages.find(p => p.id === pageId);
-                    if (page) rotatePage(page.id, 'left');
-                  }}
+                  onClick={() => rotatePage(page.id, 'left')}
                   style={{
                     background: "#007bff",
                     color: "white",
@@ -4970,16 +4902,14 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
                     padding: "6px 12px",
                     borderRadius: "4px",
                     cursor: "pointer",
-                    fontSize: "12px"
+                    fontSize: "12px",
+                    touchAction: 'manipulation'
                   }}
                 >
                   ↺ Rotate Left
                 </button>
                 <button
-                  onClick={() => {
-                    const page = pages.find(p => p.id === pageId);
-                    if (page) rotatePage(page.id, 'right');
-                  }}
+                  onClick={() => rotatePage(page.id, 'right')}
                   style={{
                     background: "#007bff",
                     color: "white",
@@ -4987,82 +4917,32 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
                     padding: "6px 12px",
                     borderRadius: "4px",
                     cursor: "pointer",
-                    fontSize: "12px"
+                    fontSize: "12px",
+                    touchAction: 'manipulation'
                   }}
                 >
                   ↻ Rotate Right
                 </button>
                 <button
-                  onClick={() => toggleZoom(pageId)}
+                  onClick={() => toggleZoom(page.id)}
                   style={{
-                    background: zoomedPages.has(pageId) ? "#FFEB3B" : "#9C27B0",
-                    color: zoomedPages.has(pageId) ? "#333" : "white",
+                    background: zoomedPages.has(page.id) ? "#FFEB3B" : "#9C27B0",
+                    color: zoomedPages.has(page.id) ? "#333" : "white",
                     border: "none",
                     padding: "6px 12px",
                     borderRadius: "4px",
                     cursor: "pointer",
-                    fontSize: "12px"
+                    fontSize: "12px",
+                    touchAction: 'manipulation'
                   }}
                 >
-                  🔍 {zoomedPages.has(pageId) ? "Zoom Out" : "Zoom In"}
+                  🔍 {zoomedPages.has(page.id) ? "Zoom Out" : "Zoom In"}
                 </button>
               </div>
             </div>
-
-            {/* Resize Arrow */}
-            <div
-              style={{
-                position: 'absolute',
-                bottom: '0',
-                right: '0',
-                width: '20px',
-                height: '20px',
-                background: '#28a745',
-                cursor: 'nw-resize',
-                borderTopLeftRadius: '4px',
-                zIndex: 1002
-              }}
-              onMouseDown={(e) => {
-                e.stopPropagation();
-                const startX = e.clientX;
-                const startY = e.clientY;
-                const startSize = data.size;
-
-                const handleMouseMove = (e: MouseEvent) => {
-                  const newWidth = Math.max(300, startSize.width + (e.clientX - startX));
-                  const newHeight = Math.max(200, startSize.height + (e.clientY - startY));
-                  
-                  setFloatingPages(prev => ({
-                    ...prev,
-                    [pageId]: {
-                      ...prev[pageId],
-                      size: { width: newWidth, height: newHeight }
-                    }
-                  }));
-                };
-
-                const handleMouseUp = () => {
-                  document.removeEventListener('mousemove', handleMouseMove);
-                  document.removeEventListener('mouseup', handleMouseUp);
-                };
-
-                document.addEventListener('mousemove', handleMouseMove);
-                document.addEventListener('mouseup', handleMouseUp);
-              }}
-            >
-              <div style={{
-                position: 'absolute',
-                bottom: '2px',
-                right: '2px',
-                width: '0',
-                height: '0',
-                borderLeft: '8px solid transparent',
-                borderBottom: '8px solid white'
-              }} />
-            </div>
-          </div>
-        )
-      )}
+          </FloatingWindow>
+        );
+      })}
 
       {/* Group Tags Floating Window */}
       {windowManager.windows.groupTags && windowManager.windows.groupTags.visible && (
