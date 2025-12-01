@@ -10,6 +10,8 @@ import A2HSButton from "../A2HSButton";
 import { PDFMaster } from "../components/PDFMaster";
 import { WindowManagerProvider } from "../components/WindowManager";
 import { MolView } from "../components/MolView";
+import { handleFileExport } from "../utils/browserUtils";
+
 // import { VirtualKeyboard, FloatingKeyboardButton } from "../components/VirtualKeyboard";
 
 // Helper function for async image loading
@@ -2547,24 +2549,8 @@ const generateFallbackPreview = () => {
 
             const pdfBlob = pdf.output('blob');
 
-            if (navigator.share && navigator.canShare({ files: [new File([pdfBlob], filename, { type: 'application/pdf' })] })) {
-                try {
-                    await navigator.share({
-                        title: '🎨 Enhanced Cropped Images',
-                        text: 'Check out these digitally enhanced cropped images!',
-                        files: [new File([pdfBlob], filename, { type: 'application/pdf' })]
-                    });
-                    alert('📄 PDF shared successfully!');
-                } catch (shareError: any) {
-                    if (shareError.name !== 'AbortError') {
-                        console.log('Share failed:', shareError);
-                        alert(`📄 PDF generated successfully! You can share this PDF of ${indicesToShare.length} enhanced images.`);
-                    }
-                }
-            } else {
-                // Just show message - no auto download
-                alert(`📄 PDF generated successfully! You can share this PDF of ${indicesToShare.length} enhanced images.`);
-            }
+            // Use our browser utility to handle the export properly
+            await handleFileExport(pdfBlob, filename);
         } catch (error) {
             console.error('Error creating PDF:', error);
             alert('❌ Error creating PDF. Please try again or check your images.');
@@ -2773,10 +2759,10 @@ const generateFallbackPreview = () => {
             if (crop) {
                 const croppedImage = await generateEnhancedCroppedImage(crop, index);
                 if (croppedImage.canvas && croppedImage.dataUrl) {
-                    const link = document.createElement('a');
-                    link.download = croppedImage.filename;
-                    link.href = croppedImage.dataUrl;
-                    link.click();
+                    // Convert data URL to blob
+                    const blob = await fetch(croppedImage.dataUrl).then(res => res.blob());
+                    // Use our browser utility to handle the export properly
+                    await handleFileExport(blob, croppedImage.filename);
                 } else {
                     console.warn(`Skipping image ${index} due to invalid data`);
                 }
@@ -2827,18 +2813,13 @@ const generateFallbackPreview = () => {
             }
 
             const zipBlob = await zip.generateAsync({ type: 'blob' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(zipBlob);
-            link.download = `cropped_images_${new Date().toISOString().slice(0, 10)}.zip`;
-            link.click();
-
-            // Clean up URL after a delay
-            setTimeout(() => {
-                URL.revokeObjectURL(link.href);
-            }, 100);
+            const filename = `cropped_images_${new Date().toISOString().slice(0, 10)}.zip`;
+            
+            // Use our browser utility to handle the export properly
+            await handleFileExport(zipBlob, filename);
 
             setProcessingJobs(prev => prev.map(job =>
-                job.id === jobId ? { ...job, status: 'completed', result: { filename: link.download } } : job
+                job.id === jobId ? { ...job, status: 'completed', result: { filename: filename } } : job
             ));
 
             // Add to history
@@ -2971,7 +2952,10 @@ const generateFallbackPreview = () => {
 
             const tabName = activeTab.name.replace(/[^a-zA-Z0-9-_]/g, '_');
             const filename = `${tabName}_${new Date().toISOString().slice(0, 10)}.pdf`;
-            pdf.save(filename);
+            
+            // Use our browser utility to handle the export properly
+            const pdfBlob = pdf.output('blob');
+            await handleFileExport(pdfBlob, filename);
 
             setProcessingJobs(prev => prev.map(job =>
                 job.id === jobId ? { ...job, status: 'completed', result: { filename } } : job

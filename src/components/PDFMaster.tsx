@@ -3,6 +3,7 @@ import { PDFDocument } from 'pdf-lib';
 import * as pdfjs from 'pdfjs-dist';
 import { WindowManagerProvider, useWindowManager, FloatingWindow, MinimizedWindowBar } from './WindowManager';
 import { parseRangeInput, generateSequentialTags, groupRangesByTag } from '../utils/rangeParser';
+import { handleFileExport } from '../utils/browserUtils';
 
 // Decorative Status Bar Buffer Component for PDF Master
 const StatusBarBuffer = () => {
@@ -266,6 +267,10 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
   const [seriesTagModeEnabled, setSeriesTagModeEnabled] = useState(false);
   const [seriesRangeInput, setSeriesRangeInput] = useState('');
   const [seriesParseResult, setSeriesParseResult] = useState<{success: boolean, errors: string[]}>({success: true, errors: []});
+
+  // State for export options modal
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportMode, setExportMode] = useState<'all' | 'selected'>('all');
 
   // Circling functionality
   interface CircleShape {
@@ -2304,109 +2309,200 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
     }
   };
 
-  // Export to PDF
-  // Export all pages to PDF
+  // New function to export pages as individual images in a ZIP file
+  const exportPagesAsImages = async (pagesToExport: PDFPage[], exportType: string) => {
+    const jobId = addProcessingJob(activeSessionId, activeSession.name, 'pdf', pagesToExport.length);
+
+    try {
+      updateProcessingJob(jobId, { 
+        message: `Exporting ${pagesToExport.length} images...` 
+      });
+
+      // Import JSZip dynamically
+      const JSZip = (await import('jszip')).default;
+      const zip = new JSZip();
+
+      for (let i = 0; i < pagesToExport.length; i++) {
+        const page = pagesToExport[i];
+        updateProcessingJob(jobId, {
+          progress: i,
+          message: `Processing image ${i + 1}/${pagesToExport.length} - ${page.name}`
+        });
+
+        try {
+          // Create canvas with original dimensions
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d')!;
+          
+          canvas.width = page.width;
+          canvas.height = page.height;
+          
+          // Load image
+          const img = new Image();
+          img.src = page.imageData;
+          await new Promise((resolve) => { img.onload = resolve; });
+          
+          // Apply transformations
+          ctx.save();
+          if (page.rotation !== 0) {
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            ctx.translate(centerX, centerY);
+            ctx.rotate((page.rotation * Math.PI) / 180);
+            ctx.translate(-centerX, -centerY);
+          }
+          
+          // Draw with high quality
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          ctx.restore();
+          
+          // Convert to PNG
+          const imageDataURL = canvas.toDataURL('image/png', 1.0);
+          
+          // Add to zip
+          const filename = `${page.name || `page_${i + 1}`}.png`;
+          const response = await fetch(imageDataURL);
+          const blob = await response.blob();
+          zip.file(filename, blob);
+        } catch (error) {
+          console.error(`Error processing page ${page.name}:`, error);
+        }
+      }
+
+      updateProcessingJob(jobId, { message: 'Creating ZIP file...' });
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      
+      // Generate filename
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/[:.]/g, '-');
+      const filename = `${activeSession.name.replace(/\s+/g, '_')}_${exportType}_${timestamp}.zip`;
+      
+      // Use handleFileExport to properly export the ZIP
+      await handleFileExport(zipBlob, filename);
+      
+      completeProcessingJob(jobId, 'completed', `✅ ${pagesToExport.length} images exported successfully as ZIP!`);
+    } catch (error) {
+      console.error('Error exporting images:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      completeProcessingJob(jobId, 'error', `❌ Error exporting images: ${errorMessage}`);
+    }
+  };
+
+  // New function to export pages as individual files (one by one)
+  const exportPagesIndividually = async (pagesToExport: PDFPage[], exportType: string) => {
+    const jobId = addProcessingJob(activeSessionId, activeSession.name, 'pdf', pagesToExport.length);
+
+    try {
+      updateProcessingJob(jobId, { 
+        message: `Exporting ${pagesToExport.length} images individually...` 
+      });
+
+      for (let i = 0; i < pagesToExport.length; i++) {
+        const page = pagesToExport[i];
+        updateProcessingJob(jobId, {
+          progress: i,
+          message: `Exporting image ${i + 1}/${pagesToExport.length} - ${page.name}`
+        });
+
+        try {
+          // Create canvas with original dimensions
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d')!;
+          
+          canvas.width = page.width;
+          canvas.height = page.height;
+          
+          // Load image
+          const img = new Image();
+          img.src = page.imageData;
+          await new Promise((resolve) => { img.onload = resolve; });
+          
+          // Apply transformations
+          ctx.save();
+          if (page.rotation !== 0) {
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            ctx.translate(centerX, centerY);
+            ctx.rotate((page.rotation * Math.PI) / 180);
+            ctx.translate(-centerX, -centerY);
+          }
+          
+          // Draw with high quality
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          ctx.restore();
+          
+          // Convert to PNG
+          const imageDataURL = canvas.toDataURL('image/png', 1.0);
+          const response = await fetch(imageDataURL);
+          const blob = await response.blob();
+          
+          // Generate filename
+          const filename = `${page.name || `page_${i + 1}`}.png`;
+          
+          // Export each file individually
+          await handleFileExport(blob, filename);
+        } catch (error) {
+          console.error(`Error exporting page ${page.name}:`, error);
+        }
+      }
+      
+      completeProcessingJob(jobId, 'completed', `✅ ${pagesToExport.length} images exported successfully individually!`);
+    } catch (error) {
+      console.error('Error exporting images individually:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      completeProcessingJob(jobId, 'error', `❌ Error exporting images: ${errorMessage}`);
+    }
+  };
+
+  // Modified exportToPDF to show modal
   const exportToPDF = async () => {
     if (pages.length === 0) {
       alert('No pages to export');
       return;
     }
-    await exportPagesToPDF(pages, 'all_pages');
+    setExportMode('all');
+    setShowExportModal(true);
   };
 
-  // Export selected pages to PDF
+  // Modified exportSelectedPagesToPDF to show modal when pages are selected
   const exportSelectedPagesToPDF = async () => {
     if (selectedPages.size === 0) {
       alert('Please select pages to export');
       return;
     }
-    const selectedPageObjects = pages.filter(page => selectedPages.has(page.id));
-    await exportPagesToPDF(selectedPageObjects, 'selected_pages');
+    setExportMode('selected');
+    setShowExportModal(true);
   };
 
-  // Common function to export pages to PDF
-  const exportPagesToPDF = async (pagesToExport: PDFPage[], exportType: string) => {
-    const jobId = addProcessingJob(activeSessionId, activeSession.name, 'pdf', pagesToExport.length);
-
-    try {
-      const pdfDoc = await PDFDocument.create();
-      const sortedPages = pagesToExport.sort((a, b) => a.order - b.order);
-
-      updateProcessingJob(jobId, { 
-        message: `Creating PDF with ${sortedPages.length} pages...` 
-      });
-
-      for (let i = 0; i < sortedPages.length; i++) {
-        const page = sortedPages[i];
-        updateProcessingJob(jobId, {
-          progress: i,
-          message: `Processing page ${i + 1}/${sortedPages.length} - ${page.name}`
-        });
-
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d')!;
-
-        // Use original dimensions for better quality
-        canvas.width = page.width;
-        canvas.height = page.height;
-
-        const img = new Image();
-        img.src = page.imageData;
-        await new Promise((resolve) => { img.onload = resolve; });
-
-        ctx.save();
-        
-        // Apply rotation if needed
-        if (page.rotation !== 0) {
-          const centerX = canvas.width / 2;
-          const centerY = canvas.height / 2;
-          ctx.translate(centerX, centerY);
-          ctx.rotate((page.rotation * Math.PI) / 180);
-          ctx.translate(-centerX, -centerY);
-        }
-        
-        // Draw with high quality
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        ctx.restore();
-
-        // Convert to PNG with high quality
-        const imageBytes = canvas.toDataURL('image/png', 1.0);
-        const pngImage = await pdfDoc.embedPng(imageBytes);
-        
-        // Create PDF page with proper dimensions
-        const pdfPage = pdfDoc.addPage([canvas.width, canvas.height]);
-        pdfPage.drawImage(pngImage, {
-          x: 0,
-          y: 0,
-          width: canvas.width,
-          height: canvas.height
-        });
+  // Handler for export modal selection
+  const handleExportOptionSelect = async (option: 'zip' | 'individual' | 'pdf') => {
+    setShowExportModal(false);
+    
+    let pagesToExport: PDFPage[] = [];
+    let exportType = '';
+    
+    if (exportMode === 'selected') {
+      pagesToExport = pages.filter(page => selectedPages.has(page.id));
+      exportType = 'selected_images';
+    } else {
+      pagesToExport = [...pages];
+      exportType = 'all_images';
+    }
+    
+    if (option === 'zip') {
+      await exportPagesAsImages(pagesToExport, exportType);
+    } else if (option === 'individual') {
+      await exportPagesIndividually(pagesToExport, exportType);
+    } else {
+      // Export as PDF
+      if (exportMode === 'selected') {
+        await exportSelectedPagesToPDF();
+      } else {
+        await exportToPDF();
       }
-
-      updateProcessingJob(jobId, { message: 'Finalizing PDF document...' });
-      const pdfBytes = await pdfDoc.save();
-      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-      const url = URL.createObjectURL(blob);
-
-      // Generate filename with timestamp
-      const timestamp = new Date().toISOString().slice(0, 19).replace(/[:.]/g, '-');
-      const filename = `${activeSession.name.replace(/\s+/g, '_')}_${exportType}_${timestamp}.pdf`;
-
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      link.click();
-
-      URL.revokeObjectURL(url);
-      completeProcessingJob(jobId, 'completed', `✅ PDF exported successfully! (${sortedPages.length} pages)`);
-      
-      console.log(`PDF Export Success: ${filename} with ${sortedPages.length} pages`);
-    } catch (error) {
-      console.error('Error exporting PDF:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      completeProcessingJob(jobId, 'error', `❌ Error exporting PDF: ${errorMessage}`);
     }
   };
 
@@ -2595,6 +2691,132 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
           </button>
         </div>
       </div>
+
+      {/* Add export modal */}
+      {showExportModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 2500
+        }}>
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(0, 20, 40, 0.95), rgba(0, 40, 80, 0.9))',
+            border: '2px solid rgba(156, 39, 176, 0.5)',
+            borderRadius: '16px',
+            padding: '32px',
+            maxWidth: '500px',
+            width: '90%',
+            textAlign: 'center'
+          }}>
+            <h3 style={{ 
+              color: '#9C27B0', 
+              marginBottom: '24px',
+              fontSize: '24px'
+            }}>
+              📤 Export Options
+            </h3>
+            
+            <p style={{ 
+              color: '#ccc', 
+              marginBottom: '24px',
+              fontSize: '16px',
+              lineHeight: '1.5'
+            }}>
+              {selectedPages.size > 0 
+                ? `Export ${selectedPages.size} selected page(s) as:`
+                : `Export all ${pages.length} page(s) as:`}
+            </p>
+            
+            <div style={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              gap: '16px' 
+            }}>
+              <button
+                onClick={() => handleExportOptionSelect('zip')}
+                style={{
+                  background: 'linear-gradient(45deg, #4CAF50, #45a049)',
+                  border: 'none',
+                  borderRadius: '12px',
+                  padding: '16px 24px',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  fontSize: '16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '12px'
+                }}
+              >
+                📦 Export as ZIP File
+              </button>
+              
+              <button
+                onClick={() => handleExportOptionSelect('individual')}
+                style={{
+                  background: 'linear-gradient(45deg, #2196F3, #1976D2)',
+                  border: 'none',
+                  borderRadius: '12px',
+                  padding: '16px 24px',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  fontSize: '16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '12px'
+                }}
+              >
+                🖼️ Export Individually
+              </button>
+              
+              <button
+                onClick={() => handleExportOptionSelect('pdf')}
+                style={{
+                  background: 'linear-gradient(45deg, #FF9800, #F57C00)',
+                  border: 'none',
+                  borderRadius: '12px',
+                  padding: '16px 24px',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  fontSize: '16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '12px'
+                }}
+              >
+                📄 Export as PDF
+              </button>
+              
+              <button
+                onClick={() => setShowExportModal(false)}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  border: '1px solid rgba(255, 255, 255, 0.3)',
+                  borderRadius: '12px',
+                  padding: '12px 24px',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tab System - EXACTLY like cropper */}
       <div style={{

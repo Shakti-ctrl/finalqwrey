@@ -12,15 +12,8 @@ const config: CapacitorConfig = {
     allowMixedContent: true
   },
   plugins: {
-    StatusBar: {
-      style: 'DARK',
-      backgroundColor: '#000000',
-      overlaysWebView: false
-    },
-    SplashScreen: {
-      launchShowDuration: 2000,
-      backgroundColor: '#000000',
-      showSpinner: false
+    Browser: {
+      packageName: 'com.android.chrome'
     }
   }
 };

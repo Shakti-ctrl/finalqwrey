@@ -1074,6 +1074,11 @@
   resolved "https://registry.npmjs.org/@capacitor/android/-/android-7.4.3.tgz"
   integrity sha512-VpjvnOcmYGPLgvXRhe3CGLs62Cg7sxOyp77NddCr+Y06qqgnoaj6OGeBVTc2DZlqZ6bSmh15JvFu82pkvmdgfQ==
 
+"@capacitor/browser@^7.0.2":
+  version "7.0.2"
+  resolved "https://registry.npmjs.org/@capacitor/browser/-/browser-7.0.2.tgz"
+  integrity sha512-5kySTunCtH+2sezmTjgDfwvspW7GW/hslQECZeLIRM2qefnxjGTc3fmCTeILYK5EuvcxMs+8sF5BhmzzKqOzuQ==
+
 "@capacitor/cli@^7.4.3":
   version "7.4.3"
   resolved "https://registry.npmjs.org/@capacitor/cli/-/cli-7.4.3.tgz"
@@ -1097,12 +1102,29 @@
     tslib "^2.8.1"
     xml2js "^0.6.2"
 
-"@capacitor/core@^7.4.0", "@capacitor/core@^7.4.3":
+"@capacitor/core@^7.4.0", "@capacitor/core@^7.4.3", "@capacitor/core@>=7.0.0":
   version "7.4.3"
   resolved "https://registry.npmjs.org/@capacitor/core/-/core-7.4.3.tgz"
   integrity sha512-wCWr8fQ9Wxn0466vPg7nMn0tivbNVjNy1yL4GvDSIZuZx7UpU2HeVGNe9QjN/quEd+YLRFeKEBLBw619VqUiNg==
   dependencies:
     tslib "^2.1.0"
+
+"@capacitor/filesystem@^7.1.5":
+  version "7.1.5"
+  resolved "https://registry.npmjs.org/@capacitor/filesystem/-/filesystem-7.1.5.tgz"
+  integrity sha512-ZzJxpEh6SwKhF1cqSVmIAkEyNG3ozf3Lwg8rUNltX6CGdd94UJV45asqmFoP6X6aT5eVu7FPjPU5SHxi6XOFgA==
+  dependencies:
+    "@capacitor/synapse" "^1.0.3"
+
+"@capacitor/share@^7.0.2":
+  version "7.0.2"
+  resolved "https://registry.npmjs.org/@capacitor/share/-/share-7.0.2.tgz"
+  integrity sha512-VyNPo/9831xnL17IMDeft5yNdBjoKNb451P95sRcr69hulRDqHc+kndqOVaMXnaA6IyBdWnnFv/n1HUf4cXpGw==
+
+"@capacitor/synapse@^1.0.3":
+  version "1.0.4"
+  resolved "https://registry.npmjs.org/@capacitor/synapse/-/synapse-1.0.4.tgz"
+  integrity sha512-/C1FUo8/OkKuAT4nCIu/34ny9siNHr9qtFezu4kxm6GY1wNFxrCFWjfYx5C1tUhVGz3fxBABegupkpjXvjCHrw==
 
 "@csstools/normalize.css@*":
   version "12.0.0"
@@ -1617,15 +1639,10 @@
   resolved "https://registry.npmjs.org/@leichtgewicht/ip-codec/-/ip-codec-2.0.4.tgz"
   integrity sha512-Hcv+nVC0kZnQ3tD9GVu5xSMR4VVYOteQIr/hwFPVEvPdlXqgGEuRjiheChHgdM+JyqdgNcmzZOX/tnl0JOiI7A==
 
-"@napi-rs/canvas-linux-x64-gnu@0.1.77":
+"@napi-rs/canvas-win32-x64-msvc@0.1.77":
   version "0.1.77"
-  resolved "https://registry.npmjs.org/@napi-rs/canvas-linux-x64-gnu/-/canvas-linux-x64-gnu-0.1.77.tgz"
-  integrity sha512-Lt6Sef5l0+5O1cSZ8ysO0JI+x+rSrqZyXs5f7+kVkCAOVq8X5WTcDVbvWvEs2aRhrWTp5y25Jf2Bn+3IcNHOuQ==
-
-"@napi-rs/canvas-linux-x64-musl@0.1.77":
-  version "0.1.77"
-  resolved "https://registry.npmjs.org/@napi-rs/canvas-linux-x64-musl/-/canvas-linux-x64-musl-0.1.77.tgz"
-  integrity sha512-NiNFvC+D+omVeJ3IjYlIbyt/igONSABVe9z0ZZph29epHgZYu4eHwV9osfpRt1BGGOAM8LkFrHk4LBdn2EDymA==
+  resolved "https://registry.npmjs.org/@napi-rs/canvas-win32-x64-msvc/-/canvas-win32-x64-msvc-0.1.77.tgz"
+  integrity sha512-fP6l0hZiWykyjvpZTS3sI46iib8QEflbPakNoUijtwyxRuOPTTBfzAWZUz5z2vKpJJ/8r305wnZeZ8lhsBHY5A==
 
 "@napi-rs/canvas@^0.1.74":
   version "0.1.77"

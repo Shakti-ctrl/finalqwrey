@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Smart Image Cropper</string>
+    <string name="title_activity_main">Smart Image Cropper</string>
+    <string name="package_name">com.shakti.smartimagecropper</string>
+    <string name="custom_url_scheme">com.shakti.smartimagecropper</string>
+</resources>
