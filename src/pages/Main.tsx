@@ -1471,7 +1471,7 @@ function Main({ appName, aboutText } :any) {
                 // Apply advanced text effects
                 if (watermark.textEffects?.gradient) {
                     const gradient = watermark.textEffects.gradient;
-                    let fillStyle;
+                    let fillStyle: CanvasGradient;
                     
                     if (gradient.type === 'linear') {
                         const angle = gradient.angle || 0;
@@ -1523,7 +1523,7 @@ function Main({ appName, aboutText } :any) {
                         // Reapply gradient or pattern for main text
                         if (watermark.textEffects?.gradient) {
                             const gradient = watermark.textEffects.gradient;
-                            let fillStyle;
+                            let fillStyle: CanvasGradient;
                             
                             if (gradient.type === 'linear') {
                                 const angle = gradient.angle || 0;

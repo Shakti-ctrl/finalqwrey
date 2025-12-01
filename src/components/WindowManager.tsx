@@ -160,8 +160,8 @@ export const FloatingWindow: React.FC<FloatingWindowProps> = ({
 
   const windowState = windows[id];
   const windowRef = useRef<HTMLDivElement>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [isResizing, setIsResizing] = useState(false);
+  const [, setIsDragging] = useState(false);
+  const [, setIsResizing] = useState(false);
 
   useEffect(() => {
     if (!windowState) {
