@@ -1,0 +1,371 @@
+Failed to compile.
+
+SyntaxError: /home/runner/workspace/src/components/PDFMaster.tsx: Identifier 'addProcessingJob' has already been declared. (2046:8)
+  2044 |   };
+  2045 |
+> 2046 |   const addProcessingJob = (sessionId: string, sessionName: string, type: 'pdf' | 'presentation' | 'upload', total: number): string => {
+       |         ^
+  2047 |     const jobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  2048 |     const newJob: ProcessingJob = {
+  2049 |       id: jobId,
+WARNING in src/A2HSButton.tsx
+  Line 4:12:  'isAppInstalled' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+src/App.tsx
+  Line 2:27:  'Router' is defined but never used     @typescript-eslint/no-unused-vars
+  Line 2:35:  'Routes' is defined but never used     @typescript-eslint/no-unused-vars
+  Line 2:43:  'Route' is defined but never used      @typescript-eslint/no-unused-vars
+  Line 2:50:  'Link' is defined but never used       @typescript-eslint/no-unused-vars
+  Line 6:8:   'AboutPage' is defined but never used  @typescript-eslint/no-unused-vars
+
+src/component/About.tsx
+  Line 4:8:  'A2HSButton' is defined but never used  @typescript-eslint/no-unused-vars
+
+src/component/Cropper.tsx
+  Line 41:6:   React Hook useEffect has missing dependencies: 'index' and 'setCrops'. Either include them or remove the dependency array. If 'setCrops' changes too often, find the parent component that defines it and wrap that definition in useCallback  react-hooks/exhaustive-deps
+  Line 43:61:  React Hook useMemo has a missing dependency: 'file'. Either include it or remove the dependency array                                                                                                                                          react-hooks/exhaustive-deps
+  Line 44:9:   'croppedImage' is assigned a value but never used                                                                                                                                                                                              @typescript-eslint/no-unused-vars
+  Line 55:6:   React Hook useEffect has missing dependencies: 'index' and 'setCrops'. Either include them or remove the dependency array. If 'setCrops' changes too often, find the parent component that defines it and wrap that definition in useCallback  react-hooks/exhaustive-deps
+  Line 62:6:   React Hook useEffect has missing dependencies: 'cropSize' and 'onSetCrops'. Either include them or remove the dependency array                                                                                                                 react-hooks/exhaustive-deps
+
+src/component/QualityPanel.tsx
+  Line 162:6:  React Hook React.useEffect has missing dependencies: 'handleMouseMove' and 'handleTouchMove'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+src/component/Select.tsx
+  Line 1:9:   'useEffect' is defined but never used  @typescript-eslint/no-unused-vars
+  Line 1:20:  'useRef' is defined but never used     @typescript-eslint/no-unused-vars
+  Line 1:28:  'useState' is defined but never used   @typescript-eslint/no-unused-vars
+
+src/components/PDFMaster.tsx
+  Line 4:10:     'WindowManagerProvider' is defined but never used                                                                                                                                                                                           @typescript-eslint/no-unused-vars
+  Line 5:27:     'generateSequentialTags' is defined but never used                                                                                                                                                                                          @typescript-eslint/no-unused-vars
+  Line 235:23:   'setSnapEnabled' is assigned a value but never used                                                                                                                                                                                         @typescript-eslint/no-unused-vars
+  Line 236:22:   'setGuideLines' is assigned a value but never used                                                                                                                                                                                          @typescript-eslint/no-unused-vars
+  Line 237:22:   'setShowGuides' is assigned a value but never used                                                                                                                                                                                          @typescript-eslint/no-unused-vars
+  Line 295:10:   'showGroupTags' is assigned a value but never used                                                                                                                                                                                          @typescript-eslint/no-unused-vars
+  Line 295:25:   'setShowGroupTags' is assigned a value but never used                                                                                                                                                                                       @typescript-eslint/no-unused-vars
+  Line 304:10:   'groupTagsSize' is assigned a value but never used                                                                                                                                                                                          @typescript-eslint/no-unused-vars
+  Line 304:25:   'setGroupTagsSize' is assigned a value but never used                                                                                                                                                                                       @typescript-eslint/no-unused-vars
+  Line 306:10:   'showCustomNames' is assigned a value but never used                                                                                                                                                                                        @typescript-eslint/no-unused-vars
+  Line 306:27:   'setShowCustomNames' is assigned a value but never used                                                                                                                                                                                     @typescript-eslint/no-unused-vars
+  Line 309:10:   'customNamesSize' is assigned a value but never used                                                                                                                                                                                        @typescript-eslint/no-unused-vars
+  Line 309:27:   'setCustomNamesSize' is assigned a value but never used                                                                                                                                                                                     @typescript-eslint/no-unused-vars
+  Line 312:10:   'showTagPageRange' is assigned a value but never used                                                                                                                                                                                       @typescript-eslint/no-unused-vars
+  Line 312:28:   'setShowTagPageRange' is assigned a value but never used                                                                                                                                                                                    @typescript-eslint/no-unused-vars
+  Line 314:10:   'tagPageRangeSize' is assigned a value but never used                                                                                                                                                                                       @typescript-eslint/no-unused-vars
+  Line 314:28:   'setTagPageRangeSize' is assigned a value but never used                                                                                                                                                                                    @typescript-eslint/no-unused-vars
+  Line 342:10:   'showShapeSelector' is assigned a value but never used                                                                                                                                                                                      @typescript-eslint/no-unused-vars
+  Line 342:29:   'setShowShapeSelector' is assigned a value but never used                                                                                                                                                                                   @typescript-eslint/no-unused-vars
+  Line 349:10:   'shapeSelectorSize' is assigned a value but never used                                                                                                                                                                                      @typescript-eslint/no-unused-vars
+  Line 349:29:   'setShapeSelectorSize' is assigned a value but never used                                                                                                                                                                                   @typescript-eslint/no-unused-vars
+  Line 351:10:   'showRotateAllModal' is assigned a value but never used                                                                                                                                                                                     @typescript-eslint/no-unused-vars
+  Line 351:30:   'setShowRotateAllModal' is assigned a value but never used                                                                                                                                                                                  @typescript-eslint/no-unused-vars
+  Line 352:27:   'setAvailableShapes' is assigned a value but never used                                                                                                                                                                                     @typescript-eslint/no-unused-vars
+  Line 365:9:    'groupTagsRef' is assigned a value but never used                                                                                                                                                                                           @typescript-eslint/no-unused-vars
+  Line 366:9:    'customNamesRef' is assigned a value but never used                                                                                                                                                                                         @typescript-eslint/no-unused-vars
+  Line 427:6:    React Hook useEffect has missing dependencies: 'pages', 'selectedRangeTag', 'selectedTag', and 'windowManager'. Either include them or remove the dependency array                                                                          react-hooks/exhaustive-deps
+  Line 610:9:    'moveCircleShape' is assigned a value but never used                                                                                                                                                                                        @typescript-eslint/no-unused-vars
+  Line 834:9:    'handleTagPageRangeDrag' is assigned a value but never used                                                                                                                                                                                 @typescript-eslint/no-unused-vars
+  Line 1081:9:   'handleGroupTagsDrag' is assigned a value but never used                                                                                                                                                                                    @typescript-eslint/no-unused-vars
+  Line 1101:9:   'handleCustomNamesDrag' is assigned a value but never used                                                                                                                                                                                  @typescript-eslint/no-unused-vars
+  Line 1121:9:   'handleShapeSelectorDrag' is assigned a value but never used                                                                                                                                                                                @typescript-eslint/no-unused-vars
+  Line 1381:9:   'generateSplitLines' is assigned a value but never used                                                                                                                                                                                     @typescript-eslint/no-unused-vars
+  Line 1432:9:   'processGeneratedSegments' is assigned a value but never used                                                                                                                                                                               @typescript-eslint/no-unused-vars
+  Line 2025:6:   React Hook useCallback has a missing dependency: 'pages'. Either include it or remove the dependency array. You can also replace multiple useState variables with useReducer if 'setSessions' needs the current value of 'pages'            react-hooks/exhaustive-deps
+  Line 2046:9:   'addProcessingJob' is already defined                                                                                                                                                                                                       @typescript-eslint/no-redeclare
+  Line 2064:9:   'updateProcessingJob' is already defined                                                                                                                                                                                                    @typescript-eslint/no-redeclare
+  Line 2070:9:   'completeProcessingJob' is already defined                                                                                                                                                                                                  @typescript-eslint/no-redeclare
+  Line 2182:6:   React Hook useEffect has a missing dependency: 'saveCurrentSession'. Either include it or remove the dependency array                                                                                                                       react-hooks/exhaustive-deps
+  Line 2212:28:  Function declared in a loop contains unsafe references to variable(s) 'sharedFiles', 'sharedFiles'                                                                                                                                          no-loop-func
+  Line 2243:6:   React Hook useEffect has an unnecessary dependency: 'sharedFiles'. Either exclude it or remove the dependency array. Outer scope values like 'sharedFiles' aren't valid dependencies because mutating them doesn't re-render the component  react-hooks/exhaustive-deps
+
+src/components/WindowManager.tsx
+  Line 163:10:  'isDragging' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  Line 164:10:  'isResizing' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+src/pages/Main.tsx
+  Line 28:7:     'FONT_FAMILIES' is assigned a value but never used                                                                                                                        @typescript-eslint/no-unused-vars
+  Line 769:8:    React Hook useEffect has missing dependencies: 'handleMouseMove' and 'handleTouchMove'. Either include them or remove the dependency array                                react-hooks/exhaustive-deps
+  Line 974:12:   'activeControl' is assigned a value but never used                                                                                                                        @typescript-eslint/no-unused-vars
+  Line 974:27:   'setActiveControl' is assigned a value but never used                                                                                                                     @typescript-eslint/no-unused-vars
+  Line 1013:28:  'borderPattern' is assigned a value but never used                                                                                                                        @typescript-eslint/no-unused-vars
+  Line 1013:43:  'setBorderPattern' is assigned a value but never used                                                                                                                     @typescript-eslint/no-unused-vars
+  Line 1084:12:  'activeElement' is assigned a value but never used                                                                                                                        @typescript-eslint/no-unused-vars
+  Line 1187:8:   React Hook useEffect has a missing dependency: 'saveCurrentTabState'. Either include it or remove the dependency array                                                    react-hooks/exhaustive-deps
+  Line 1398:11:  'applyImageTransformations' is assigned a value but never used                                                                                                            @typescript-eslint/no-unused-vars
+  Line 1953:11:  'deleteWatermark' is assigned a value but never used                                                                                                                      @typescript-eslint/no-unused-vars
+  Line 1963:11:  'deleteSignature' is assigned a value but never used                                                                                                                      @typescript-eslint/no-unused-vars
+  Line 2017:11:  'resizeElement' is assigned a value but never used                                                                                                                        @typescript-eslint/no-unused-vars
+  Line 2049:11:  'moveWatermarkLayerUp' is assigned a value but never used                                                                                                                 @typescript-eslint/no-unused-vars
+  Line 2069:11:  'moveWatermarkLayerDown' is assigned a value but never used                                                                                                               @typescript-eslint/no-unused-vars
+  Line 2089:11:  'bringWatermarkToFront' is assigned a value but never used                                                                                                                @typescript-eslint/no-unused-vars
+  Line 2104:11:  'sendWatermarkToBack' is assigned a value but never used                                                                                                                  @typescript-eslint/no-unused-vars
+  Line 2197:11:  'handleAddBorder' is assigned a value but never used                                                                                                                      @typescript-eslint/no-unused-vars
+  Line 2340:11:  'handleImportWatermark' is assigned a value but never used                                                                                                                @typescript-eslint/no-unused-vars
+  Line 2344:11:  'handleImportSignature' is assigned a value but never used                                                                                                                @typescript-eslint/no-unused-vars
+  Line 2579:8:   React Hook useEffect has missing dependencies: 'applyQualityEffectsToPreview' and 'qualityPreviewImage'. Either include them or remove the dependency array               react-hooks/exhaustive-deps
+  Line 2590:8:   React Hook useEffect has missing dependencies: 'qualityPreviewImage' and 'saveQualityState'. Either include them or remove the dependency array                           react-hooks/exhaustive-deps
+  Line 2597:8:   React Hook useEffect has missing dependencies: 'generateQualityPreview' and 'qualityPreviewImage'. Either include them or remove the dependency array                     react-hooks/exhaustive-deps
+  Line 2780:11:  'applyWatermarksToAllImages' is assigned a value but never used                                                                                                           @typescript-eslint/no-unused-vars
+  Line 2825:11:  'applyIndividualWatermarkToImage' is assigned a value but never used                                                                                                      @typescript-eslint/no-unused-vars
+  Line 2863:11:  'batchApplyDifferentWatermarks' is assigned a value but never used                                                                                                        @typescript-eslint/no-unused-vars
+  Line 2992:8:   React Hook useEffect has missing dependencies: 'importSignatureImage' and 'importWatermarkImage'. Either include them or remove the dependency array                      react-hooks/exhaustive-deps
+  Line 3566:8:   React Hook useEffect has missing dependencies: 'onGeneratePDF', 'onSaveAsZip', 'onSaveCropped', and 'selectAllFiles'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  Line 3739:11:  'undoPreviewChange' is assigned a value but never used                                                                                                                    @typescript-eslint/no-unused-vars
+  Line 3777:11:  'updateFloatingPosition' is assigned a value but never used                                                                                                               @typescript-eslint/no-unused-vars
+  Line 3788:11:  'updateFloatingSize' is assigned a value but never used                                                                                                                   @typescript-eslint/no-unused-vars
+  Line 3815:11:  'savePreviewStateAndApply' is assigned a value but never used                                                                                                             @typescript-eslint/no-unused-vars
+
+src/utils/browserUtils.ts
+  Line 2:33:  'Encoding' is defined but never used  @typescript-eslint/no-unused-vars
+
+ERROR in ./src/components/PDFMaster.tsx
+Module build failed (from ./node_modules/babel-loader/lib/index.js):
+SyntaxError: /home/runner/workspace/src/components/PDFMaster.tsx: Identifier 'addProcessingJob' has already been declared. (2046:8)
+
+  2044 |   };
+  2045 |
+> 2046 |   const addProcessingJob = (sessionId: string, sessionName: string, type: 'pdf' | 'presentation' | 'upload', total: number): string => {
+       |         ^
+  2047 |     const jobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  2048 |     const newJob: ProcessingJob = {
+  2049 |       id: jobId,
+    at instantiate (/home/runner/workspace/node_modules/@babel/parser/lib/index.js:72:32)
+    at constructor (/home/runner/workspace/node_modules/@babel/parser/lib/index.js:358:12)
+    at Parser.raise (/home/runner/workspace/node_modules/@babel/parser/lib/index.js:3341:19)
+    at TypeScriptScopeHandler.checkRedeclarationInScope (/home/runner/workspace/node_modules/@babel/parser/lib/index.js:3525:19)
+    at TypeScriptScopeHandler.declareName (/home/runner/workspace/node_modules/@babel/parser/lib/index.js:3491:12)
+    at TypeScriptScopeHandler.declareName (/home/runner/workspace/node_modules/@babel/parser/lib/index.js:8134:11)
+    at Parser.declareNameFromIdentifier (/home/runner/workspace/node_modules/@babel/parser/lib/index.js:12154:16)
+    at Parser.checkIdentifier (/home/runner/workspace/node_modules/@babel/parser/lib/index.js:12149:12)
+    at Parser.checkLVal (/home/runner/workspace/node_modules/@babel/parser/lib/index.js:12075:12)
+    at Parser.parseVarId (/home/runner/workspace/node_modules/@babel/parser/lib/index.js:15401:10)
+
+webpack compiled with 1 error and 1 warning
+ERROR in src/components/PDFMaster.tsx:1474:9
+TS2451: Cannot redeclare block-scoped variable 'addProcessingJob'.
+    1472 |   
+    1473 |   // Processing job management
+  > 1474 |   const addProcessingJob = (sessionId: string, sessionName: string, type: 'pdf' | 'presentation' | 'upload', total: number): string => {
+         |         ^^^^^^^^^^^^^^^^
+    1475 |     const jobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    1476 |     const newJob: ProcessingJob = {
+    1477 |       id: jobId,
+
+ERROR in src/components/PDFMaster.tsx:1492:9
+TS2451: Cannot redeclare block-scoped variable 'updateProcessingJob'.
+    1490 |   };
+    1491 |   
+  > 1492 |   const updateProcessingJob = (jobId: string, updates: Partial<ProcessingJob>) => {
+         |         ^^^^^^^^^^^^^^^^^^^
+    1493 |     setProcessingJobs(prev => prev.map(job => job.id === jobId ? { ...job, ...updates } : job));
+    1494 |   };
+    1495 |   
+
+ERROR in src/components/PDFMaster.tsx:1496:9
+TS2451: Cannot redeclare block-scoped variable 'completeProcessingJob'.
+    1494 |   };
+    1495 |   
+  > 1496 |   const completeProcessingJob = (jobId: string, status: 'completed' | 'error', message: string) => {
+         |         ^^^^^^^^^^^^^^^^^^^^^
+    1497 |     setProcessingJobs(prev => prev.map(job => job.id === jobId ? { ...job, status, message, timestamp: Date.now() } : job));
+    1498 |     setGlobalProcessingCount(prev => prev - 1);
+    1499 |   };
+
+ERROR in src/components/PDFMaster.tsx:2046:9
+TS2451: Cannot redeclare block-scoped variable 'addProcessingJob'.
+    2044 |   };
+    2045 |
+  > 2046 |   const addProcessingJob = (sessionId: string, sessionName: string, type: 'pdf' | 'presentation' | 'upload', total: number): string => {
+         |         ^^^^^^^^^^^^^^^^
+    2047 |     const jobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    2048 |     const newJob: ProcessingJob = {
+    2049 |       id: jobId,
+
+ERROR in src/components/PDFMaster.tsx:2064:9
+TS2451: Cannot redeclare block-scoped variable 'updateProcessingJob'.
+    2062 |   };
+    2063 |
+  > 2064 |   const updateProcessingJob = (jobId: string, updates: Partial<ProcessingJob>) => {
+         |         ^^^^^^^^^^^^^^^^^^^
+    2065 |     setProcessingJobs(prev => prev.map(job => 
+    2066 |       job.id === jobId ? { ...job, ...updates } : job
+    2067 |     ));
+
+ERROR in src/components/PDFMaster.tsx:2070:9
+TS2451: Cannot redeclare block-scoped variable 'completeProcessingJob'.
+    2068 |   };
+    2069 |
+  > 2070 |   const completeProcessingJob = (jobId: string, status: 'completed' | 'error', message: string) => {
+         |         ^^^^^^^^^^^^^^^^^^^^^
+    2071 |     setProcessingJobs(prev => prev.map(job => 
+    2072 |       job.id === jobId ? { ...job, status, message } : job
+    2073 |     ));
+
+ERROR in src/components/PDFMaster.tsx:2186:9
+TS2304: Cannot find name 'sharedFiles'.
+    2184 |   // Auto-load shared files from cropper when available - ALWAYS load when sharedFiles change
+    2185 |   useEffect(() => {
+  > 2186 |     if (sharedFiles && sharedFiles.length > 0 && isVisible) {
+         |         ^^^^^^^^^^^
+    2187 |       const convertSharedFilesToPages = async () => {
+    2188 |         const jobId = addProcessingJob(activeSessionId, activeSession?.name || 'PDF Session', 'upload', sharedFiles.length);
+    2189 |         
+
+ERROR in src/components/PDFMaster.tsx:2186:24
+TS2304: Cannot find name 'sharedFiles'.
+    2184 |   // Auto-load shared files from cropper when available - ALWAYS load when sharedFiles change
+    2185 |   useEffect(() => {
+  > 2186 |     if (sharedFiles && sharedFiles.length > 0 && isVisible) {
+         |                        ^^^^^^^^^^^
+    2187 |       const convertSharedFilesToPages = async () => {
+    2188 |         const jobId = addProcessingJob(activeSessionId, activeSession?.name || 'PDF Session', 'upload', sharedFiles.length);
+    2189 |         
+
+ERROR in src/components/PDFMaster.tsx:2188:105
+TS2304: Cannot find name 'sharedFiles'.
+    2186 |     if (sharedFiles && sharedFiles.length > 0 && isVisible) {
+    2187 |       const convertSharedFilesToPages = async () => {
+  > 2188 |         const jobId = addProcessingJob(activeSessionId, activeSession?.name || 'PDF Session', 'upload', sharedFiles.length);
+         |                                                                                                         ^^^^^^^^^^^
+    2189 |         
+    2190 |         try {
+    2191 |           const newPages: PDFPage[] = [];
+
+ERROR in src/components/PDFMaster.tsx:2193:31
+TS2304: Cannot find name 'sharedFiles'.
+    2191 |           const newPages: PDFPage[] = [];
+    2192 |           
+  > 2193 |           for (let i = 0; i < sharedFiles.length; i++) {
+         |                               ^^^^^^^^^^^
+    2194 |             const file = sharedFiles[i];
+    2195 |             updateProcessingJob(jobId, { 
+    2196 |               progress: i, 
+
+ERROR in src/components/PDFMaster.tsx:2194:26
+TS2304: Cannot find name 'sharedFiles'.
+    2192 |           
+    2193 |           for (let i = 0; i < sharedFiles.length; i++) {
+  > 2194 |             const file = sharedFiles[i];
+         |                          ^^^^^^^^^^^
+    2195 |             updateProcessingJob(jobId, { 
+    2196 |               progress: i, 
+    2197 |               message: `Loading finalized image ${i + 1} of ${sharedFiles.length}...` 
+
+ERROR in src/components/PDFMaster.tsx:2197:63
+TS2304: Cannot find name 'sharedFiles'.
+    2195 |             updateProcessingJob(jobId, { 
+    2196 |               progress: i, 
+  > 2197 |               message: `Loading finalized image ${i + 1} of ${sharedFiles.length}...` 
+         |                                                               ^^^^^^^^^^^
+    2198 |             });
+    2199 |             
+    2200 |             // Convert file to image data if it's not already
+
+ERROR in src/components/PDFMaster.tsx:2227:41
+TS2304: Cannot find name 'sharedFiles'.
+    2225 |                 newPages.push(newPage);
+    2226 |                 
+  > 2227 |                 if (newPages.length === sharedFiles.length) {
+         |                                         ^^^^^^^^^^^
+    2228 |                   setPages(newPages);
+    2229 |                   completeProcessingJob(jobId, 'completed', `Successfully loaded ${sharedFiles.length} finalized images from cropper`);
+    2230 |                 }
+
+ERROR in src/components/PDFMaster.tsx:2229:84
+TS2304: Cannot find name 'sharedFiles'.
+    2227 |                 if (newPages.length === sharedFiles.length) {
+    2228 |                   setPages(newPages);
+  > 2229 |                   completeProcessingJob(jobId, 'completed', `Successfully loaded ${sharedFiles.length} finalized images from cropper`);
+         |                                                                                    ^^^^^^^^^^^
+    2230 |                 }
+    2231 |               };
+    2232 |               img.src = imageData;
+
+ERROR in src/components/PDFMaster.tsx:2243:7
+TS2304: Cannot find name 'sharedFiles'.
+    2241 |       convertSharedFilesToPages();
+    2242 |     }
+  > 2243 |   }, [sharedFiles, activeSessionId, activeSession?.name, isVisible]);
+         |       ^^^^^^^^^^^
+    2244 |   
+    2245 |   // Initialize history when pages change
+    2246 |   useEffect(() => {
+
+ERROR in src/components/PDFMaster.tsx:3003:12
+TS2304: Cannot find name 'onSwitchToCropper'.
+    3001 |           </button>
+    3002 |
+  > 3003 |           {onSwitchToCropper && (
+         |            ^^^^^^^^^^^^^^^^^
+    3004 |             <button
+    3005 |               onClick={async () => {
+    3006 |                 const processedPages = await exportProcessedPagesToFiles();
+
+ERROR in src/components/PDFMaster.tsx:3008:17
+TS2304: Cannot find name 'onSwitchToCropper'.
+    3006 |                 const processedPages = await exportProcessedPagesToFiles();
+    3007 |                 console.log(`Exporting ${processedPages.length} processed pages to Cropper`);
+  > 3008 |                 onSwitchToCropper(processedPages);
+         |                 ^^^^^^^^^^^^^^^^^
+    3009 |               }}
+    3010 |               style={{
+    3011 |                 background: 'linear-gradient(45deg, #4CAF50, #45a049)',
+
+ERROR in src/components/PDFMaster.tsx:4444:16
+TS2304: Cannot find name 'onSwitchToCropper'.
+    4442 |               
+    4443 |               {/* Switch to Cropper Tools Button */}
+  > 4444 |               {onSwitchToCropper && (
+         |                ^^^^^^^^^^^^^^^^^
+    4445 |                 <button
+    4446 |                   onClick={async () => {
+    4447 |                     const processedPages = await exportProcessedPagesToFiles();
+
+ERROR in src/components/PDFMaster.tsx:4449:21
+TS2304: Cannot find name 'onSwitchToCropper'.
+    4447 |                     const processedPages = await exportProcessedPagesToFiles();
+    4448 |                     console.log(`Exporting ${processedPages.length} processed pages to Cropper`);
+  > 4449 |                     onSwitchToCropper(processedPages);
+         |                     ^^^^^^^^^^^^^^^^^
+    4450 |                   }}
+    4451 |                   style={{
+    4452 |                     background: 'linear-gradient(45deg, #4CAF50, #45a049)',
+
+ERROR in src/pages/Main.tsx:1474:25
+TS7034: Variable 'fillStyle' implicitly has type 'any' in some locations where its type cannot be determined.
+    1472 |                 if (watermark.textEffects?.gradient) {
+    1473 |                     const gradient = watermark.textEffects.gradient;
+  > 1474 |                     let fillStyle;
+         |                         ^^^^^^^^^
+    1475 |                     
+    1476 |                     if (gradient.type === 'linear') {
+    1477 |                         const angle = gradient.angle || 0;
+
+ERROR in src/pages/Main.tsx:1489:25
+TS7005: Variable 'fillStyle' implicitly has an 'any' type.
+    1487 |                     
+    1488 |                     gradient.colors.forEach(colorStop => {
+  > 1489 |                         fillStyle.addColorStop(colorStop.position, colorStop.color);
+         |                         ^^^^^^^^^
+    1490 |                     });
+    1491 |                     
+    1492 |                     ctx.fillStyle = fillStyle;
+
+ERROR in src/pages/Main.tsx:1526:33
+TS7034: Variable 'fillStyle' implicitly has type 'any' in some locations where its type cannot be determined.
+    1524 |                         if (watermark.textEffects?.gradient) {
+    1525 |                             const gradient = watermark.textEffects.gradient;
+  > 1526 |                             let fillStyle;
+         |                                 ^^^^^^^^^
+    1527 |                             
+    1528 |                             if (gradient.type === 'linear') {
+    1529 |                                 const angle = gradient.angle || 0;
+
+ERROR in src/pages/Main.tsx:1541:33
+TS7005: Variable 'fillStyle' implicitly has an 'any' type.
+    1539 |                             
+    1540 |                             gradient.colors.forEach(colorStop => {
+  > 1541 |                                 fillStyle.addColorStop(colorStop.position, colorStop.color);
+         |                                 ^^^^^^^^^
+    1542 |                             });

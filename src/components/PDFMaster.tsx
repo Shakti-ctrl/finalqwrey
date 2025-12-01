@@ -199,7 +199,7 @@ interface PDFMasterProps {
   onSwitchToCropper?: (processedPages?: any[]) => void;
 }
 
-export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose }) => {
+export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, sharedFiles, onSwitchToCropper }) => {
   // Tab-based session management - exactly like cropper
   const [sessions, setSessions] = useState<PDFSession[]>([{
     id: 'pdf-session-1',
@@ -2041,41 +2041,6 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose }) => {
       setZoomedPages(new Set());
       setRearrangeMode(false);
     }
-  };
-
-  const addProcessingJob = (sessionId: string, sessionName: string, type: 'pdf' | 'presentation' | 'upload', total: number): string => {
-    const jobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const newJob: ProcessingJob = {
-      id: jobId,
-      sessionId,
-      sessionName,
-      type,
-      status: 'processing',
-      progress: 0,
-      total,
-      message: `Starting ${type} processing...`,
-      timestamp: Date.now()
-    };
-    setProcessingJobs(prev => [...prev, newJob]);
-    setGlobalProcessingCount(prev => prev + 1);
-    return jobId;
-  };
-
-  const updateProcessingJob = (jobId: string, updates: Partial<ProcessingJob>) => {
-    setProcessingJobs(prev => prev.map(job => 
-      job.id === jobId ? { ...job, ...updates } : job
-    ));
-  };
-
-  const completeProcessingJob = (jobId: string, status: 'completed' | 'error', message: string) => {
-    setProcessingJobs(prev => prev.map(job => 
-      job.id === jobId ? { ...job, status, message } : job
-    ));
-    setGlobalProcessingCount(prev => Math.max(0, prev - 1));
-    // Auto-remove completed/error jobs after 5 seconds
-    setTimeout(() => {
-      setProcessingJobs(prev => prev.filter(job => job.id !== jobId));
-    }, 5000);
   };
 
   const exportProcessedPagesToFiles = async (): Promise<any[]> => {
