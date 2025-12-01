@@ -130,6 +130,68 @@ interface CropTab {
     isActive: boolean;
 }
 
+interface Watermark {
+    id: string;
+    text: string;
+    image: string;
+    opacity: number;
+    position: { x: number; y: number };
+    size: { width: number; height: number };
+    rotation: number;
+    fontSize: number;
+    fontFamily: string;
+    isBold: boolean;
+    isItalic: boolean;
+    textAlign: string;
+    textColor: string;
+    isMovable: boolean;
+    history: Array<any>;
+    blendingMode?: string;
+    textEffects?: {
+        outline?: boolean;
+        shadow?: { blur: number; offsetX: number; offsetY: number };
+        glow?: { blur: number };
+        gradient?: {
+            type: 'linear' | 'radial';
+            colors: Array<{color: string, position: number}>;
+            angle?: number;
+        };
+        pattern?: {
+            image: string;
+            repeat: 'repeat' | 'repeat-x' | 'repeat-y' | 'no-repeat';
+        };
+        '3d'?: {
+            depth: number;
+            color: string;
+            angle: number;
+        };
+    };
+    layerOrder?: number;
+}
+
+interface Signature {
+    id: string;
+    text: string;
+    image: string;
+    opacity: number;
+    position: { x: number; y: number };
+    size: { width: number; height: number };
+    rotation: number;
+    fontSize: number;
+    fontFamily: string;
+    isBold: boolean;
+    isItalic: boolean;
+    textAlign: string;
+    textColor: string;
+    isMovable: boolean;
+    history: Array<any>;
+    brushType?: 'pen' | 'marker' | 'pencil' | 'calligraphy';
+    strokeWidth?: number;
+    strokeColor?: string;
+    texture?: string;
+    points?: Array<{x: number, y: number, pressure: number}>;
+}
+
 // Decorative Status Bar Buffer Component
 const StatusBarBuffer = () => {
     const [glowIntensity, setGlowIntensity] = useState(0.5);
@@ -634,6 +696,21 @@ const DraggablePanel = ({
         };
     };
 
+    const handleTouchStart = (e: React.TouchEvent) => {
+        if ((e.target as HTMLElement).closest('.no-drag')) return;
+
+        setIsDragging(true);
+        dragRef.current = {
+            startX: e.touches[0].clientX,
+            startY: e.touches[0].clientY,
+            startPosX: position.x,
+            startPosY: position.y
+        };
+        
+        // Prevent scrolling while dragging
+        e.preventDefault();
+    };
+
     const handleMouseMove = (e: MouseEvent) => {
         if (!isDragging && !isResizing) return;
 
@@ -648,7 +725,29 @@ const DraggablePanel = ({
         }
     };
 
+    const handleTouchMove = (e: TouchEvent) => {
+        if (!isDragging && !isResizing) return;
+
+        if (isDragging) {
+            const deltaX = e.touches[0].clientX - dragRef.current.startX;
+            const deltaY = e.touches[0].clientY - dragRef.current.startY;
+
+            setPosition({
+                x: Math.max(0, Math.min(window.innerWidth - size.width, dragRef.current.startPosX + deltaX)),
+                y: Math.max(0, Math.min(window.innerHeight - size.height, dragRef.current.startPosY + deltaY))
+            });
+            
+            // Prevent scrolling while dragging
+            e.preventDefault();
+        }
+    };
+
     const handleMouseUp = () => {
+        setIsDragging(false);
+        setIsResizing(false);
+    };
+
+    const handleTouchEnd = () => {
         setIsDragging(false);
         setIsResizing(false);
     };
@@ -657,41 +756,60 @@ const DraggablePanel = ({
         if (isDragging || isResizing) {
             document.addEventListener('mousemove', handleMouseMove);
             document.addEventListener('mouseup', handleMouseUp);
+            document.addEventListener('touchmove', handleTouchMove, { passive: false });
+            document.addEventListener('touchend', handleTouchEnd);
 
             return () => {
                 document.removeEventListener('mousemove', handleMouseMove);
                 document.removeEventListener('mouseup', handleMouseUp);
+                document.removeEventListener('touchmove', handleTouchMove);
+                document.removeEventListener('touchend', handleTouchEnd);
             };
         }
     }, [isDragging, isResizing, position, size]);
 
-    const handleResize = (e: React.MouseEvent) => {
+    const handleResize = (e: React.MouseEvent | React.TouchEvent) => {
         e.stopPropagation();
         setIsResizing(true);
-
-        const startX = e.clientX;
-        const startY = e.clientY;
+        
+        const isTouch = 'touches' in e;
+        const startX = isTouch ? e.touches[0].clientX : e.clientX;
+        const startY = isTouch ? e.touches[0].clientY : e.clientY;
         const startWidth = size.width;
         const startHeight = size.height;
 
-        const handleResizeMove = (e: MouseEvent) => {
-            const deltaX = e.clientX - startX;
-            const deltaY = e.clientY - startY;
+        const handleResizeMove = (e: MouseEvent | TouchEvent) => {
+            const clientX = isTouch ? (e as TouchEvent).touches[0].clientX : (e as MouseEvent).clientX;
+            const clientY = isTouch ? (e as TouchEvent).touches[0].clientY : (e as MouseEvent).clientY;
+            const deltaX = clientX - startX;
+            const deltaY = clientY - startY;
 
             setSize({
                 width: Math.max(280, startWidth + deltaX),
                 height: Math.max(300, startHeight + deltaY)
             });
+            
+            // Prevent scrolling while resizing
+            if (isTouch) {
+                e.preventDefault();
+            }
         };
 
         const handleResizeEnd = () => {
             setIsResizing(false);
             document.removeEventListener('mousemove', handleResizeMove);
             document.removeEventListener('mouseup', handleResizeEnd);
+            document.removeEventListener('touchmove', handleResizeMove);
+            document.removeEventListener('touchend', handleResizeEnd);
         };
 
-        document.addEventListener('mousemove', handleResizeMove);
-        document.addEventListener('mouseup', handleResizeEnd);
+        if (isTouch) {
+            document.addEventListener('touchmove', handleResizeMove, { passive: false });
+            document.addEventListener('touchend', handleResizeEnd);
+        } else {
+            document.addEventListener('mousemove', handleResizeMove);
+            document.addEventListener('mouseup', handleResizeEnd);
+        }
     };
 
     return (
@@ -716,6 +834,7 @@ const DraggablePanel = ({
             {/* Header with drag handle */}
             <div
                 onMouseDown={handleMouseDown}
+                onTouchStart={handleTouchStart}
                 style={{
                     background: borderColor,
                     color: 'white',
@@ -726,7 +845,8 @@ const DraggablePanel = ({
                     justifyContent: 'space-between',
                     alignItems: 'center',
                     fontSize: '14px',
-                    fontWeight: 'bold'
+                    fontWeight: 'bold',
+                    touchAction: 'none'
                 }}
             >
                 <span>{title}</span>
@@ -780,6 +900,7 @@ const DraggablePanel = ({
                 <div
                     className="no-drag"
                     onMouseDown={handleResize}
+                    onTouchStart={handleResize}
                     style={{
                         position: 'absolute',
                         bottom: '0px',
@@ -793,7 +914,8 @@ const DraggablePanel = ({
                         alignItems: 'center',
                         justifyContent: 'center',
                         color: 'white',
-                        fontSize: '12px'
+                        fontSize: '12px',
+                        touchAction: 'none'
                     }}
                     title="Drag to resize"
                 >
@@ -912,23 +1034,7 @@ function Main({ appName, aboutText } :any) {
     const [showSignatureEditor, setShowSignatureEditor] = useState<boolean>(false);
 
     // Multiple Watermarks and Signatures with individual controls
-    const [watermarks, setWatermarks] = useState<Array<{
-        id: string;
-        text: string;
-        image: string;
-        opacity: number;
-        position: { x: number; y: number };
-        size: { width: number; height: number };
-        rotation: number;
-        fontSize: number;
-        fontFamily: string;
-        isBold: boolean;
-        isItalic: boolean;
-        textAlign: string;
-        textColor: string;
-        isMovable: boolean;
-        history: Array<any>;
-    }>>([{
+    const [watermarks, setWatermarks] = useState<Watermark[]>([{
         id: 'watermark-1',
         text: 'WATERMARK',
         image: '',
@@ -943,26 +1049,17 @@ function Main({ appName, aboutText } :any) {
         textAlign: 'center',
         textColor: '#FFFFFF',
         isMovable: false,
-        history: []
+        history: [],
+        blendingMode: 'source-over',
+        textEffects: {
+            outline: true,
+            shadow: { blur: 3, offsetX: 1, offsetY: 1 },
+            glow: { blur: 0 }
+        },
+        layerOrder: 0
     }]);
 
-    const [signatures, setSignatures] = useState<Array<{
-        id: string;
-        text: string;
-        image: string;
-        opacity: number;
-        position: { x: number; y: number };
-        size: { width: number; height: number };
-        rotation: number;
-        fontSize: number;
-        fontFamily: string;
-        isBold: boolean;
-        isItalic: boolean;
-        textAlign: string;
-        textColor: string;
-        isMovable: boolean;
-        history: Array<any>;
-    }>>([{
+    const [signatures, setSignatures] = useState<Signature[]>([{
         id: 'signature-1',
         text: '',
         image: '',
@@ -977,7 +1074,11 @@ function Main({ appName, aboutText } :any) {
         textAlign: 'center',
         textColor: '#000000',
         isMovable: false,
-        history: []
+        history: [],
+        brushType: 'pen',
+        strokeWidth: 2,
+        strokeColor: '#000000',
+        points: []
     }]);
 
     const [activeElement, setActiveElement] = useState<{ type: 'watermark' | 'signature' | null; id: string | null }>({ type: null, id: null });
@@ -1333,8 +1434,9 @@ function Main({ appName, aboutText } :any) {
     const addWatermark = async (canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) => {
         if (!enableWatermark) return;
 
-        // Apply all watermarks
-        for (const watermark of watermarks) {
+        // Apply all watermarks in layer order
+        const sortedWatermarks = [...watermarks].sort((a, b) => (a.layerOrder || 0) - (b.layerOrder || 0));
+        for (const watermark of sortedWatermarks) {
             if (!watermark.text?.trim() && !watermark.image) continue;
 
             const centerX = (watermark.position.x / 100) * canvas.width;
@@ -1344,6 +1446,11 @@ function Main({ appName, aboutText } :any) {
             ctx.translate(centerX, centerY);
             ctx.rotate((watermark.rotation * Math.PI) / 180);
             ctx.globalAlpha = watermark.opacity / 100;
+            
+            // Apply blending mode if specified
+            if (watermark.blendingMode) {
+                ctx.globalCompositeOperation = watermark.blendingMode as GlobalCompositeOperation;
+            }
 
             if (watermark.image) {
                 try {
@@ -1358,18 +1465,122 @@ function Main({ appName, aboutText } :any) {
                 const fontStyle = watermark.isItalic ? 'italic' : 'normal';
 
                 ctx.font = `${fontStyle} ${fontWeight} ${scaledFontSize}px ${watermark.fontFamily}`;
-                ctx.fillStyle = watermark.textColor;
-                ctx.strokeStyle = watermark.textColor === '#FFFFFF' ? 'rgba(0, 0, 0, 0.8)' : 'rgba(255, 255, 255, 0.8)';
-                ctx.lineWidth = 1;
                 ctx.textAlign = watermark.textAlign as CanvasTextAlign;
                 ctx.textBaseline = 'middle';
 
-                ctx.shadowColor = watermark.textColor === '#FFFFFF' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.7)';
-                ctx.shadowBlur = 3;
-                ctx.shadowOffsetX = 1;
-                ctx.shadowOffsetY = 1;
+                // Apply advanced text effects
+                if (watermark.textEffects?.gradient) {
+                    const gradient = watermark.textEffects.gradient;
+                    let fillStyle;
+                    
+                    if (gradient.type === 'linear') {
+                        const angle = gradient.angle || 0;
+                        const rad = angle * Math.PI / 180;
+                        const x1 = -watermark.size.width / 2;
+                        const y1 = -watermark.size.height / 2;
+                        const x2 = x1 + Math.cos(rad) * watermark.size.width;
+                        const y2 = y1 + Math.sin(rad) * watermark.size.height;
+                        fillStyle = ctx.createLinearGradient(x1, y1, x2, y2);
+                    } else {
+                        fillStyle = ctx.createRadialGradient(0, 0, 0, 0, 0, watermark.size.width / 2);
+                    }
+                    
+                    gradient.colors.forEach(colorStop => {
+                        fillStyle.addColorStop(colorStop.position, colorStop.color);
+                    });
+                    
+                    ctx.fillStyle = fillStyle;
+                } else if (watermark.textEffects?.pattern) {
+                    try {
+                        const patternImg = await loadImageAsync(watermark.textEffects.pattern.image);
+                        const pattern = ctx.createPattern(patternImg, watermark.textEffects.pattern.repeat);
+                        if (pattern) {
+                            ctx.fillStyle = pattern;
+                        } else {
+                            ctx.fillStyle = watermark.textColor;
+                        }
+                    } catch (error) {
+                        console.error("Failed to load pattern image:", error);
+                        ctx.fillStyle = watermark.textColor;
+                    }
+                } else {
+                    ctx.fillStyle = watermark.textColor;
+                }
 
-                ctx.strokeText(watermark.text, 0, 0);
+                // Apply 3D effect if specified
+                if (watermark.textEffects?.['3d']) {
+                    const effect3d = watermark.textEffects['3d'];
+                    const rad = effect3d.angle * Math.PI / 180;
+                    const offsetX = Math.cos(rad) * effect3d.depth;
+                    const offsetY = Math.sin(rad) * effect3d.depth;
+                    
+                    // Draw 3D shadow
+                    ctx.fillStyle = effect3d.color;
+                    ctx.fillText(watermark.text, offsetX, offsetY);
+                    
+                    // Draw main text on top
+                    if (watermark.textEffects?.gradient || watermark.textEffects?.pattern) {
+                        // Reapply gradient or pattern for main text
+                        if (watermark.textEffects?.gradient) {
+                            const gradient = watermark.textEffects.gradient;
+                            let fillStyle;
+                            
+                            if (gradient.type === 'linear') {
+                                const angle = gradient.angle || 0;
+                                const rad = angle * Math.PI / 180;
+                                const x1 = -watermark.size.width / 2;
+                                const y1 = -watermark.size.height / 2;
+                                const x2 = x1 + Math.cos(rad) * watermark.size.width;
+                                const y2 = y1 + Math.sin(rad) * watermark.size.height;
+                                fillStyle = ctx.createLinearGradient(x1, y1, x2, y2);
+                            } else {
+                                fillStyle = ctx.createRadialGradient(0, 0, 0, 0, 0, watermark.size.width / 2);
+                            }
+                            
+                            gradient.colors.forEach(colorStop => {
+                                fillStyle.addColorStop(colorStop.position, colorStop.color);
+                            });
+                            
+                            ctx.fillStyle = fillStyle;
+                        } else if (watermark.textEffects?.pattern) {
+                            try {
+                                const patternImg = await loadImageAsync(watermark.textEffects.pattern.image);
+                                const pattern = ctx.createPattern(patternImg, watermark.textEffects.pattern.repeat);
+                                if (pattern) {
+                                    ctx.fillStyle = pattern;
+                                }
+                            } catch (error) {
+                                console.error("Failed to load pattern image:", error);
+                            }
+                        }
+                    } else {
+                        ctx.fillStyle = watermark.textColor;
+                    }
+                }
+
+                // Apply outline effect
+                if (watermark.textEffects?.outline) {
+                    ctx.strokeStyle = watermark.textColor === '#FFFFFF' ? 'rgba(0, 0, 0, 0.8)' : 'rgba(255, 255, 255, 0.8)';
+                    ctx.lineWidth = 1;
+                    ctx.strokeText(watermark.text, 0, 0);
+                }
+                
+                // Apply shadow effect
+                if (watermark.textEffects?.shadow) {
+                    ctx.shadowColor = watermark.textColor === '#FFFFFF' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.7)';
+                    ctx.shadowBlur = watermark.textEffects.shadow.blur || 3;
+                    ctx.shadowOffsetX = watermark.textEffects.shadow.offsetX || 1;
+                    ctx.shadowOffsetY = watermark.textEffects.shadow.offsetY || 1;
+                }
+                
+                // Apply glow effect
+                if (watermark.textEffects?.glow) {
+                    ctx.shadowColor = watermark.textColor;
+                    ctx.shadowBlur = watermark.textEffects.glow.blur || 5;
+                    ctx.shadowOffsetX = 0;
+                    ctx.shadowOffsetY = 0;
+                }
+
                 ctx.fillText(watermark.text, 0, 0);
             }
             ctx.restore();
@@ -1491,7 +1702,7 @@ function Main({ appName, aboutText } :any) {
 
         // Apply all signatures
         for (const signature of signatures) {
-            if (!signature.text?.trim() && !signature.image) continue;
+            if (!signature.text?.trim() && !signature.image && (!signature.points || signature.points.length === 0)) continue;
 
             const centerX = (signature.position.x / 100) * canvas.width;
             const centerY = (signature.position.y / 100) * canvas.height;
@@ -1501,7 +1712,95 @@ function Main({ appName, aboutText } :any) {
             ctx.rotate((signature.rotation * Math.PI) / 180);
             ctx.globalAlpha = signature.opacity / 100;
 
-            if (signature.image) {
+            // If signature has drawn points, render as a drawing
+            if (signature.points && signature.points.length > 1) {
+                // Apply brush type effects
+                switch (signature.brushType) {
+                    case 'marker':
+                        ctx.lineWidth = signature.strokeWidth || 8;
+                        ctx.lineCap = 'square';
+                        ctx.lineJoin = 'miter';
+                        break;
+                    case 'pencil':
+                        ctx.lineWidth = signature.strokeWidth || 2;
+                        ctx.lineCap = 'round';
+                        ctx.lineJoin = 'round';
+                        // Simulate pencil texture with dashed lines
+                        ctx.setLineDash([1, 2]);
+                        break;
+                    case 'calligraphy':
+                        ctx.lineWidth = signature.strokeWidth || 4;
+                        ctx.lineCap = 'round';
+                        ctx.lineJoin = 'round';
+                        // Simulate calligraphy with varying line width
+                        break;
+                    case 'pen':
+                    default:
+                        ctx.lineWidth = signature.strokeWidth || 2;
+                        ctx.lineCap = 'round';
+                        ctx.lineJoin = 'round';
+                        ctx.setLineDash([]);
+                        break;
+                }
+
+                ctx.strokeStyle = signature.strokeColor || '#000000';
+                
+                // Draw the signature path with enhanced pen physics
+                ctx.beginPath();
+                
+                // For the first point
+                const firstPoint = signature.points[0];
+                ctx.moveTo(firstPoint.x, firstPoint.y);
+                
+                // Draw smooth curves between points with pressure sensitivity
+                for (let i = 1; i < signature.points.length; i++) {
+                    const currentPoint = signature.points[i];
+                    const prevPoint = signature.points[i - 1];
+                    
+                    // Calculate velocity for realistic pen physics
+                    const velocity = i > 1 ? 
+                        Math.sqrt(Math.pow(currentPoint.x - prevPoint.x, 2) + Math.pow(currentPoint.y - prevPoint.y, 2)) : 0;
+                    
+                    // Apply pressure sensitivity with velocity-based adjustments
+                    let pressure = currentPoint.pressure || 1;
+                    
+                    // Adjust pressure based on brush type and velocity
+                    switch (signature.brushType) {
+                        case 'marker':
+                            // Marker has consistent width regardless of pressure
+                            ctx.lineWidth = signature.strokeWidth || 8;
+                            break;
+                        case 'pencil':
+                            // Pencil thins with speed and pressure
+                            pressure = Math.max(0.3, pressure - velocity * 0.01);
+                            ctx.lineWidth = (signature.strokeWidth || 2) * pressure;
+                            break;
+                        case 'calligraphy':
+                            // Calligraphy varies width based on angle and pressure
+                            const angle = i > 1 ? Math.atan2(currentPoint.y - prevPoint.y, currentPoint.x - prevPoint.x) : 0;
+                            const angleFactor = Math.abs(Math.sin(angle));
+                            ctx.lineWidth = (signature.strokeWidth || 4) * pressure * (0.5 + 0.5 * angleFactor);
+                            break;
+                        case 'pen':
+                        default:
+                            // Standard pen with realistic pressure sensitivity
+                            ctx.lineWidth = (signature.strokeWidth || 2) * pressure;
+                            break;
+                    }
+                    
+                    // For smoother curves, use quadratic curves when we have enough points
+                    if (i > 1) {
+                        const controlX = (prevPoint.x + currentPoint.x) / 2;
+                        const controlY = (prevPoint.y + currentPoint.y) / 2;
+                        ctx.quadraticCurveTo(prevPoint.x, prevPoint.y, controlX, controlY);
+                    } else {
+                        ctx.lineTo(currentPoint.x, currentPoint.y);
+                    }
+                }
+                
+                ctx.stroke();
+                ctx.setLineDash([]);
+            } else if (signature.image) {
                 try {
                     const img = await loadImageAsync(signature.image);
                     ctx.drawImage(img, -signature.size.width / 2, -signature.size.height / 2, signature.size.width, signature.size.height);
@@ -1578,7 +1877,7 @@ function Main({ appName, aboutText } :any) {
 
     // Add new watermark - always center initially
     const addNewWatermark = () => {
-        const newWatermark = {
+        const newWatermark: Watermark = {
             id: `watermark-${Date.now()}`,
             text: 'NEW WATERMARK',
             image: '',
@@ -1593,7 +1892,22 @@ function Main({ appName, aboutText } :any) {
             textAlign: 'center',
             textColor: '#FFFFFF',
             isMovable: false,
-            history: []
+            history: [],
+            blendingMode: 'source-over',
+            textEffects: {
+                outline: true,
+                shadow: { blur: 3, offsetX: 1, offsetY: 1 },
+                glow: { blur: 0 },
+                gradient: {
+                    type: 'linear',
+                    colors: [
+                        { color: '#FFFFFF', position: 0 },
+                        { color: '#000000', position: 1 }
+                    ],
+                    angle: 45
+                }
+            },
+            layerOrder: watermarks.length
         };
 
         saveQualityState(); // Save state before adding
@@ -1605,7 +1919,7 @@ function Main({ appName, aboutText } :any) {
 
     // Add new signature - always center initially
     const addNewSignature = () => {
-        const newSignature = {
+        const newSignature: Signature = {
             id: `signature-${Date.now()}`,
             text: 'New Signature',
             image: '',
@@ -1620,7 +1934,12 @@ function Main({ appName, aboutText } :any) {
             textAlign: 'center',
             textColor: '#000000',
             isMovable: false,
-            history: []
+            history: [],
+            brushType: 'pen',
+            strokeWidth: 2,
+            strokeColor: '#000000',
+            points: [],
+            texture: '' // For future texture support
         };
 
         saveQualityState(); // Save state before adding
@@ -1724,6 +2043,76 @@ function Main({ appName, aboutText } :any) {
         } else {
             updateSignature(id, { rotation: angle });
         }
+    };
+
+    // Move watermark layer up
+    const moveWatermarkLayerUp = (id: string) => {
+        setWatermarks(prev => {
+            const watermarksCopy = [...prev];
+            const index = watermarksCopy.findIndex(w => w.id === id);
+            if (index === -1 || index === 0) return prev;
+            
+            // Swap with previous watermark
+            const temp = watermarksCopy[index];
+            watermarksCopy[index] = watermarksCopy[index - 1];
+            watermarksCopy[index - 1] = temp;
+            
+            // Update layer orders
+            watermarksCopy[index].layerOrder = index;
+            watermarksCopy[index - 1].layerOrder = index - 1;
+            
+            return watermarksCopy;
+        });
+    };
+
+    // Move watermark layer down
+    const moveWatermarkLayerDown = (id: string) => {
+        setWatermarks(prev => {
+            const watermarksCopy = [...prev];
+            const index = watermarksCopy.findIndex(w => w.id === id);
+            if (index === -1 || index === watermarksCopy.length - 1) return prev;
+            
+            // Swap with next watermark
+            const temp = watermarksCopy[index];
+            watermarksCopy[index] = watermarksCopy[index + 1];
+            watermarksCopy[index + 1] = temp;
+            
+            // Update layer orders
+            watermarksCopy[index].layerOrder = index;
+            watermarksCopy[index + 1].layerOrder = index + 1;
+            
+            return watermarksCopy;
+        });
+    };
+
+    // Bring watermark to front
+    const bringWatermarkToFront = (id: string) => {
+        setWatermarks(prev => {
+            const watermarksCopy = [...prev];
+            const index = watermarksCopy.findIndex(w => w.id === id);
+            if (index === -1 || index === watermarksCopy.length - 1) return prev;
+            
+            const watermark = watermarksCopy.splice(index, 1)[0];
+            watermarksCopy.push(watermark);
+            
+            // Update layer orders
+            return watermarksCopy.map((w, i) => ({ ...w, layerOrder: i }));
+        });
+    };
+
+    // Send watermark to back
+    const sendWatermarkToBack = (id: string) => {
+        setWatermarks(prev => {
+            const watermarksCopy = [...prev];
+            const index = watermarksCopy.findIndex(w => w.id === id);
+            if (index === -1 || index === 0) return prev;
+            
+            const watermark = watermarksCopy.splice(index, 1)[0];
+            watermarksCopy.unshift(watermark);
+            
+            // Update layer orders
+            return watermarksCopy.map((w, i) => ({ ...w, layerOrder: i }));
+        });
     };
 
     // Delete element
@@ -2385,6 +2774,129 @@ const generateFallbackPreview = () => {
         } else {
             alert('⚠️ No next quality settings to apply.');
         }
+    };
+
+    // Apply watermarks to all images in batch mode
+    const applyWatermarksToAllImages = async (applyToAll = false) => {
+        if (!enableWatermark || watermarks.length === 0) {
+            alert('⚠️ No watermarks to apply.');
+            return;
+        }
+
+        // Save current state
+        saveQualityState();
+
+        if (applyToAll) {
+            // Apply to all cropped images
+            const croppedKeys = Object.keys(crops);
+            if (croppedKeys.length === 0) {
+                alert('⚠️ No images to apply watermarks to.');
+                return;
+            }
+
+            alert(`🔄 Applying watermarks to ${croppedKeys.length} images...`);
+
+            // Store original cropped images for undo functionality
+            setOriginalCroppedImages({ ...croppedImages });
+
+            // Apply watermarks to all cropped images
+            for (const key of croppedKeys) {
+                const index = parseInt(key);
+                const crop = crops[index];
+                if (crop && crop.width && crop.height) {
+                    const enhancedImage = await generateEnhancedCroppedImage(crop, index);
+                    if (enhancedImage.dataUrl) {
+                        setCroppedImages((prev: any) => ({
+                            ...prev,
+                            [index]: enhancedImage.dataUrl
+                        }));
+                    }
+                }
+            }
+
+            alert('✅ Watermarks applied to all images!');
+        } else {
+            // Apply to current preview only
+            alert('💾 Watermarks saved for current preview!');
+        }
+    };
+
+    // Apply individual watermark customization to specific images
+    const applyIndividualWatermarkToImage = async (imageIndex: number, customWatermark: Watermark) => {
+        if (!enableWatermark) {
+            alert('⚠️ Watermark feature is not enabled.');
+            return;
+        }
+
+        // Temporarily replace the watermark for this specific image
+        const originalWatermarks = [...watermarks];
+        const watermarkIndex = watermarks.findIndex(w => w.id === customWatermark.id);
+        
+        if (watermarkIndex !== -1) {
+            // Update the specific watermark with custom settings
+            const updatedWatermarks = [...originalWatermarks];
+            updatedWatermarks[watermarkIndex] = customWatermark;
+            setWatermarks(updatedWatermarks);
+            
+            // Apply to the specific image
+            const crop = crops[imageIndex];
+            if (crop && crop.width && crop.height) {
+                const enhancedImage = await generateEnhancedCroppedImage(crop, imageIndex);
+                if (enhancedImage.dataUrl) {
+                    setCroppedImages((prev: any) => ({
+                        ...prev,
+                        [imageIndex]: enhancedImage.dataUrl
+                    }));
+                }
+            }
+            
+            // Restore original watermarks
+            setWatermarks(originalWatermarks);
+            
+            alert(`✅ Custom watermark applied to image ${imageIndex + 1}!`);
+        } else {
+            alert('⚠️ Watermark not found.');
+        }
+    };
+
+    // Batch apply different watermarks to different images
+    const batchApplyDifferentWatermarks = async (imageWatermarkMap: Record<number, Watermark[]>) => {
+        if (!enableWatermark) {
+            alert('⚠️ Watermark feature is not enabled.');
+            return;
+        }
+
+        // Save current state
+        saveQualityState();
+        
+        // Store original cropped images for undo functionality
+        setOriginalCroppedImages({ ...croppedImages });
+        
+        // Apply different watermarks to different images
+        for (const [imageIndex, customWatermarks] of Object.entries(imageWatermarkMap)) {
+            const index = parseInt(imageIndex);
+            const crop = crops[index];
+            
+            if (crop && crop.width && crop.height) {
+                // Temporarily set custom watermarks
+                const originalWatermarks = [...watermarks];
+                setWatermarks(customWatermarks);
+                
+                // Apply to the specific image
+                const enhancedImage = await generateEnhancedCroppedImage(crop, index);
+                if (enhancedImage.dataUrl) {
+                    setCroppedImages((prev: any) => ({
+                        ...prev,
+                        [index]: enhancedImage.dataUrl
+                    }));
+                }
+                
+                // Restore original watermarks
+                setWatermarks(originalWatermarks);
+            }
+        }
+        
+        alert('✅ Different watermarks applied to selected images!');
     };
 
     // Add event listeners for new Quality Panel functionality
@@ -4272,6 +4784,32 @@ const generateFallbackPreview = () => {
                                 document.addEventListener('mousemove', handleMouseMove);
                                 document.addEventListener('mouseup', handleMouseUp);
                             }}
+                            onTouchStart={(e) => {
+                                if (isResizing) return;
+                                const startX = e.touches[0].clientX - previewPosition.x;
+                                const startY = e.touches[0].clientY - previewPosition.y;
+                                
+                                // Prevent scrolling while dragging
+                                e.preventDefault();
+
+                                const handleTouchMove = (e: TouchEvent) => {
+                                    setPreviewPosition({
+                                        x: e.touches[0].clientX - startX,
+                                        y: e.touches[0].clientY - startY
+                                    });
+                                    
+                                    // Prevent scrolling while dragging
+                                    e.preventDefault();
+                                };
+
+                                const handleTouchEnd = () => {
+                                    document.removeEventListener('touchmove', handleTouchMove);
+                                    document.removeEventListener('touchend', handleTouchEnd);
+                                };
+
+                                document.addEventListener('touchmove', handleTouchMove, { passive: false });
+                                document.addEventListener('touchend', handleTouchEnd);
+                            }}
                         >
                             <span>🖼️ Live Preview ({currentPreviewIndex + 1}/{Object.keys(crops).filter(key => crops[parseInt(key)] && crops[parseInt(key)].width && crops[parseInt(key)].height).length})</span>
                             <div style={{ display: 'flex', gap: '5px' }}>
@@ -4378,6 +4916,44 @@ const generateFallbackPreview = () => {
 
                                         document.addEventListener('mousemove', handleMouseMove);
                                         document.addEventListener('mouseup', handleMouseUp);
+                                    }}
+                                    onTouchStart={(e) => {
+                                        if (!watermark.isMovable) return;
+
+                                        e.preventDefault();
+                                        e.stopPropagation();
+
+                                        const container = e.currentTarget.parentElement!;
+                                        const rect = container.getBoundingClientRect();
+                                        const startX = e.touches[0].clientX;
+                                        const startY = e.touches[0].clientY;
+                                        const startPos = { ...watermark.position };
+                                        
+                                        // Prevent scrolling while moving
+                                        e.preventDefault();
+
+                                        const handleTouchMove = (e: TouchEvent) => {
+                                            const deltaX = ((e.touches[0].clientX - startX) / rect.width) * 100;
+                                            const deltaY = ((e.touches[0].clientY - startY) / rect.height) * 100;
+
+                                            const newPos = {
+                                                x: Math.max(5, Math.min(95, startPos.x + deltaX)),
+                                                y: Math.max(5, Math.min(95, startPos.y + deltaY))
+                                            };
+
+                                            updateWatermark(watermark.id, { position: newPos });
+                                            
+                                            // Prevent scrolling while moving
+                                            e.preventDefault();
+                                        };
+
+                                        const handleTouchEnd = () => {
+                                            document.removeEventListener('touchmove', handleTouchMove);
+                                            document.removeEventListener('touchend', handleTouchEnd);
+                                        };
+
+                                        document.addEventListener('touchmove', handleTouchMove, { passive: false });
+                                        document.addEventListener('touchend', handleTouchEnd);
                                     }}
                                 >
                                     {watermark.image ? (
@@ -4503,6 +5079,44 @@ const generateFallbackPreview = () => {
                                         document.addEventListener('mousemove', handleMouseMove);
                                         document.addEventListener('mouseup', handleMouseUp);
                                     }}
+                                    onTouchStart={(e) => {
+                                        if (!signature.isMovable) return;
+
+                                        e.preventDefault();
+                                        e.stopPropagation();
+
+                                        const container = e.currentTarget.parentElement!;
+                                        const rect = container.getBoundingClientRect();
+                                        const startX = e.touches[0].clientX;
+                                        const startY = e.touches[0].clientY;
+                                        const startPos = { ...signature.position };
+                                        
+                                        // Prevent scrolling while moving
+                                        e.preventDefault();
+
+                                        const handleTouchMove = (e: TouchEvent) => {
+                                            const deltaX = ((e.touches[0].clientX - startX) / rect.width) * 100;
+                                            const deltaY = ((e.touches[0].clientY - startY) / rect.height) * 100;
+
+                                            const newPos = {
+                                                x: Math.max(5, Math.min(95, startPos.x + deltaX)),
+                                                y: Math.max(5, Math.min(95, startPos.y + deltaY))
+                                            };
+
+                                            updateSignature(signature.id, { position: newPos });
+                                            
+                                            // Prevent scrolling while moving
+                                            e.preventDefault();
+                                        };
+
+                                        const handleTouchEnd = () => {
+                                            document.removeEventListener('touchmove', handleTouchMove);
+                                            document.removeEventListener('touchend', handleTouchEnd);
+                                        };
+
+                                        document.addEventListener('touchmove', handleTouchMove, { passive: false });
+                                        document.addEventListener('touchend', handleTouchEnd);
+                                    }}
                                 >
                                     {signature.image ? (
                                         <img src={signature.image} alt="Signature" style={{
@@ -4616,6 +5230,14 @@ const generateFallbackPreview = () => {
                                         onMouseUp={(e) => {
                                             e.currentTarget.style.transform = 'translateY(-50%) scale(1.15) rotate(-5deg)';
                                         }}
+                                        onTouchStart={(e) => {
+                                            e.currentTarget.style.transform = 'translateY(-50%) scale(0.95)';
+                                            // Prevent scrolling while touching
+                                            e.preventDefault();
+                                        }}
+                                        onTouchEnd={(e) => {
+                                            e.currentTarget.style.transform = 'translateY(-50%) scale(1.15) rotate(-5deg)';
+                                        }}
                                         title="Previous Image"
                                     >
                                         ◄◄
@@ -4662,6 +5284,14 @@ const generateFallbackPreview = () => {
                                             e.currentTarget.style.transform = 'translateY(-50%) scale(0.95)';
                                         }}
                                         onMouseUp={(e) => {
+                                            e.currentTarget.style.transform = 'translateY(-50%) scale(1.15) rotate(5deg)';
+                                        }}
+                                        onTouchStart={(e) => {
+                                            e.currentTarget.style.transform = 'translateY(-50%) scale(0.95)';
+                                            // Prevent scrolling while touching
+                                            e.preventDefault();
+                                        }}
+                                        onTouchEnd={(e) => {
                                             e.currentTarget.style.transform = 'translateY(-50%) scale(1.15) rotate(5deg)';
                                         }}
                                         title="Next Image"
@@ -4716,6 +5346,37 @@ const generateFallbackPreview = () => {
 
                                     document.addEventListener('mousemove', handleMouseMove);
                                     document.addEventListener('mouseup', handleMouseUp);
+                                }}
+                                onTouchStart={(e) => {
+                                    e.stopPropagation();
+                                    setIsResizing(true);
+                                    const startX = e.touches[0].clientX;
+                                    const startY = e.touches[0].clientY;
+                                    const startWidth = previewSize.width;
+                                    const startHeight = previewSize.height;
+                                    
+                                    // Prevent scrolling while resizing
+                                    e.preventDefault();
+
+                                    const handleTouchMove = (e: TouchEvent) => {
+                                        const deltaX = e.touches[0].clientX - startX;
+                                        const deltaY = e.touches[0].clientY - startY;
+                                        const newWidth = Math.max(200, startWidth + deltaX);
+                                        const newHeight = Math.max(150, startHeight + deltaY);
+                                        setPreviewSize({ width: newWidth, height: newHeight });
+                                        
+                                        // Prevent scrolling while resizing
+                                        e.preventDefault();
+                                    };
+
+                                    const handleTouchEnd = () => {
+                                        setIsResizing(false);
+                                        document.removeEventListener('touchmove', handleTouchMove);
+                                        document.removeEventListener('touchend', handleTouchEnd);
+                                    };
+
+                                    document.addEventListener('touchmove', handleTouchMove, { passive: false });
+                                    document.addEventListener('touchend', handleTouchEnd);
                                 }}
                                 onMouseEnter={(e) => {
                                     e.currentTarget.style.transform = 'scale(1.1)';

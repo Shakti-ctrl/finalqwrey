@@ -89,6 +89,21 @@ const QualityPanel: React.FC<Props> = ({
     };
   };
 
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if ((e.target as HTMLElement).closest('.no-drag')) return;
+
+    setIsDragging(true);
+    dragRef.current = {
+      startX: e.touches[0].clientX,
+      startY: e.touches[0].clientY,
+      startPosX: position.x,
+      startPosY: position.y
+    };
+    
+    // Prevent scrolling while dragging
+    e.preventDefault();
+  };
+
   const handleMouseMove = (e: MouseEvent) => {
     if (!isDragging && !isResizing) return;
 
@@ -103,7 +118,29 @@ const QualityPanel: React.FC<Props> = ({
     }
   };
 
+  const handleTouchMove = (e: TouchEvent) => {
+    if (!isDragging && !isResizing) return;
+
+    if (isDragging) {
+      const deltaX = e.touches[0].clientX - dragRef.current.startX;
+      const deltaY = e.touches[0].clientY - dragRef.current.startY;
+
+      setPosition({
+        x: Math.max(0, Math.min(window.innerWidth - size.width, dragRef.current.startPosX + deltaX)),
+        y: Math.max(0, Math.min(window.innerHeight - size.height, dragRef.current.startPosY + deltaY))
+      });
+      
+      // Prevent scrolling while dragging
+      e.preventDefault();
+    }
+  };
+
   const handleMouseUp = () => {
+    setIsDragging(false);
+    setIsResizing(false);
+  };
+
+  const handleTouchEnd = () => {
     setIsDragging(false);
     setIsResizing(false);
   };
@@ -112,41 +149,60 @@ const QualityPanel: React.FC<Props> = ({
     if (isDragging || isResizing) {
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
+      document.addEventListener('touchmove', handleTouchMove, { passive: false });
+      document.addEventListener('touchend', handleTouchEnd);
 
       return () => {
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', handleMouseUp);
+        document.removeEventListener('touchmove', handleTouchMove);
+        document.removeEventListener('touchend', handleTouchEnd);
       };
     }
   }, [isDragging, isResizing, position, size]);
 
-  const handleResize = (e: React.MouseEvent) => {
+  const handleResize = (e: React.MouseEvent | React.TouchEvent) => {
     e.stopPropagation();
     setIsResizing(true);
-
-    const startX = e.clientX;
-    const startY = e.clientY;
+    
+    const isTouch = 'touches' in e;
+    const startX = isTouch ? e.touches[0].clientX : e.clientX;
+    const startY = isTouch ? e.touches[0].clientY : e.clientY;
     const startWidth = size.width;
     const startHeight = size.height;
 
-    const handleResizeMove = (e: MouseEvent) => {
-      const deltaX = e.clientX - startX;
-      const deltaY = e.clientY - startY;
+    const handleResizeMove = (e: MouseEvent | TouchEvent) => {
+      const clientX = isTouch ? (e as TouchEvent).touches[0].clientX : (e as MouseEvent).clientX;
+      const clientY = isTouch ? (e as TouchEvent).touches[0].clientY : (e as MouseEvent).clientY;
+      const deltaX = clientX - startX;
+      const deltaY = clientY - startY;
 
       setSize({
         width: Math.max(280, startWidth + deltaX),
         height: Math.max(400, startHeight + deltaY)
       });
+      
+      // Prevent scrolling while resizing
+      if (isTouch) {
+        e.preventDefault();
+      }
     };
 
     const handleResizeEnd = () => {
       setIsResizing(false);
       document.removeEventListener('mousemove', handleResizeMove);
       document.removeEventListener('mouseup', handleResizeEnd);
+      document.removeEventListener('touchmove', handleResizeMove);
+      document.removeEventListener('touchend', handleResizeEnd);
     };
 
-    document.addEventListener('mousemove', handleResizeMove);
-    document.addEventListener('mouseup', handleResizeEnd);
+    if (isTouch) {
+      document.addEventListener('touchmove', handleResizeMove, { passive: false });
+      document.addEventListener('touchend', handleResizeEnd);
+    } else {
+      document.addEventListener('mousemove', handleResizeMove);
+      document.addEventListener('mouseup', handleResizeEnd);
+    }
   };
 
   return (
@@ -172,6 +228,7 @@ const QualityPanel: React.FC<Props> = ({
       <div 
         className="quality-panel-header"
         onMouseDown={handleMouseDown}
+        onTouchStart={handleTouchStart}
         style={{
           background: '#007bff',
           color: 'white',
@@ -181,7 +238,8 @@ const QualityPanel: React.FC<Props> = ({
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          borderBottom: '1px solid #0056b3'
+          borderBottom: '1px solid #0056b3',
+          touchAction: 'none'
         }}
       >
         <h3 style={{ margin: 0, fontSize: '16px' }}>🎛️ Quality Tools</h3>
@@ -564,6 +622,7 @@ const QualityPanel: React.FC<Props> = ({
         <div
           className="resize-handle no-drag"
           onMouseDown={handleResize}
+          onTouchStart={handleResize}
           style={{
             position: 'absolute',
             bottom: '0px',
@@ -577,7 +636,8 @@ const QualityPanel: React.FC<Props> = ({
             alignItems: 'center',
             justifyContent: 'center',
             color: 'white',
-            fontSize: '12px'
+            fontSize: '12px',
+            touchAction: 'none'
           }}
           title="Drag to resize"
         >

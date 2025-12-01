@@ -142,6 +142,12 @@ interface SplitLine {
   id: string;
   points: { x: number; y: number }[];
   isDrawing: boolean;
+  // Add snapping and guide information
+  snapTo?: 'horizontal' | 'vertical' | 'grid' | 'none';
+  guideLine?: { type: 'horizontal' | 'vertical'; position: number };
+  // Add curve information for bezier smoothing
+  isCurve?: boolean;
+  controlPoints?: { x: number; y: number }[]; // Control points for bezier curves
 }
 
 interface PDFPage {
@@ -193,7 +199,7 @@ interface PDFMasterProps {
   onSwitchToCropper?: (processedPages?: any[]) => void;
 }
 
-export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, sharedFiles = [], onSwitchToCropper }) => {
+export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose }) => {
   // Tab-based session management - exactly like cropper
   const [sessions, setSessions] = useState<PDFSession[]>([{
     id: 'pdf-session-1',
@@ -216,7 +222,7 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
   const [selectedPages, setSelectedPages] = useState<Set<string>>(new Set());
   
   // Image splitting functionality
-  const [splitMode, setSplitMode] = useState(false);
+  const [splitMode, setSplitMode] = useState<'off' | 'horizontal' | 'vertical' | 'grid' | 'custom' | 'freehand-curve'>('off');
   const [previewMode, setPreviewMode] = useState(false);
   const [applyToAll, setApplyToAll] = useState(false);
   const [editHistory, setEditHistory] = useState<PDFPage[][]>([]);
@@ -225,6 +231,52 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentSplitLine, setCurrentSplitLine] = useState<{ x: number; y: number }[]>([]);
   
+  // Enhanced split line drawing with snapping and guides
+  const [snapEnabled, setSnapEnabled] = useState(true);
+  const [guideLines, setGuideLines] = useState<Array<{type: 'horizontal' | 'vertical', position: number}>>([]);
+  const [showGuides, setShowGuides] = useState(true);
+  
+  // Bezier curve smoothing function for precise drawing
+  const smoothCurvePoints = (points: {x: number, y: number}[], tension: number = 0.5) => {
+    if (points.length < 2) return points;
+    
+    const smoothedPoints = [];
+    const segments = Math.max(10, points.length * 2);
+    
+    for (let i = 0; i < points.length - 1; i++) {
+      const p0 = i === 0 ? points[0] : points[i - 1];
+      const p1 = points[i];
+      const p2 = points[i + 1];
+      const p3 = i === points.length - 2 ? points[i + 1] : points[i + 2];
+      
+      // Calculate control points for bezier curve
+      const cp1x = p1.x + (p2.x - p0.x) * tension / 6;
+      const cp1y = p1.y + (p2.y - p0.y) * tension / 6;
+      const cp2x = p2.x - (p3.x - p1.x) * tension / 6;
+      const cp2y = p2.y - (p3.y - p1.y) * tension / 6;
+      
+      // Generate points along the bezier curve
+      for (let t = 0; t <= 1; t += 1 / segments) {
+        const t2 = t * t;
+        const t3 = t2 * t;
+        
+        const x = (2 * t3 - 3 * t2 + 1) * p1.x + 
+                  (t3 - 2 * t2 + t) * (cp1x - p1.x) + 
+                  (-2 * t3 + 3 * t2) * p2.x + 
+                  (t3 - t2) * (cp2x - p2.x);
+                  
+        const y = (2 * t3 - 3 * t2 + 1) * p1.y + 
+                  (t3 - 2 * t2 + t) * (cp1y - p1.y) + 
+                  (-2 * t3 + 3 * t2) * p2.y + 
+                  (t3 - t2) * (cp2y - p2.y);
+                  
+        smoothedPoints.push({x, y});
+      }
+    }
+    
+    return smoothedPoints;
+  };
+
   // Check if current session has any processing jobs
   const currentSessionJobs = processingJobs.filter(job => job.sessionId === activeSessionId);
   const isCurrentSessionProcessing = currentSessionJobs.some(job => job.status === 'processing');
@@ -1117,7 +1169,8 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
   };
   
   const splitImageByLines = async (page: PDFPage): Promise<PDFPage[]> => {
-    if (!page.splitLines || page.splitLines.length === 0) {
+    // If no split lines and not using advanced modes, return original page
+    if ((!page.splitLines || page.splitLines.length === 0) && splitMode === 'off') {
       return [page];
     }
     
@@ -1135,45 +1188,20 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
         
         const splitPages: PDFPage[] = [];
         
-        // Get the canvas element for this page to understand scaling
-        const displayCanvas = canvasRefs.current[page.id];
-        const scaleX = displayCanvas ? sourceCanvas.width / displayCanvas.width : 1;
-        const scaleY = displayCanvas ? sourceCanvas.height / displayCanvas.height : 1;
-        
-        // Sort split lines by Y coordinate and scale coordinates
-        const sortedLines = [...(page.splitLines || [])].map(line => ({
-          ...line,
-          points: line.points.map(p => ({
-            x: p.x * scaleX,
-            y: p.y * scaleY
-          }))
-        })).sort((a, b) => {
-          const avgYA = a.points.reduce((sum, p) => sum + p.y, 0) / a.points.length;
-          const avgYB = b.points.reduce((sum, p) => sum + p.y, 0) / b.points.length;
-          return avgYA - avgYB;
-        });
-        
-        let currentY = 0;
-        
-        // Create segments between split lines
-        for (let i = 0; i <= sortedLines.length; i++) {
-          const nextY = i < sortedLines.length 
-            ? Math.min(...sortedLines[i].points.map(p => p.y))
-            : sourceCanvas.height;
-          
-          const segmentHeight = Math.max(1, Math.floor(nextY - currentY));
-          
-          if (segmentHeight > 5) { // Only create segment if meaningful height
+        // Handle different split modes
+        if (splitMode === 'horizontal') {
+          // Create 3 horizontal splits (4 parts)
+          const segmentHeight = Math.floor(sourceCanvas.height / 4);
+          for (let i = 0; i < 4; i++) {
             const segmentCanvas = document.createElement('canvas');
             const segmentCtx = segmentCanvas.getContext('2d')!;
             
             segmentCanvas.width = sourceCanvas.width;
             segmentCanvas.height = segmentHeight;
             
-            // Copy the segment from source canvas with proper clipping
             segmentCtx.drawImage(
-              sourceCanvas, 
-              0, Math.floor(currentY), sourceCanvas.width, segmentHeight,
+              sourceCanvas,
+              0, i * segmentHeight, sourceCanvas.width, segmentHeight,
               0, 0, sourceCanvas.width, segmentHeight
             );
             
@@ -1181,23 +1209,162 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
             
             const newPage: PDFPage = {
               ...page,
-              id: `${page.id}_split_${i}`,
+              id: `${page.id}_split_h_${i}`,
               name: `${page.name}_part_${i + 1}`,
               imageData: segmentImageData,
               parentPageId: page.id,
               splitIndex: i,
-              order: page.order + (i * 0.001), // Smaller increment for better ordering
+              order: page.order + (i * 0.001),
               width: sourceCanvas.width,
               height: segmentHeight,
-              crop: { x: 0, y: 0, width: sourceCanvas.width, height: segmentHeight },
-              splitLines: undefined, // Remove split lines from segments
+              crop: { x: 0, y: i * segmentHeight, width: sourceCanvas.width, height: segmentHeight },
+              splitLines: undefined,
               isOriginal: false
             };
             
             splitPages.push(newPage);
           }
+        } else if (splitMode === 'vertical') {
+          // Create 3 vertical splits (4 parts)
+          const segmentWidth = Math.floor(sourceCanvas.width / 4);
+          for (let i = 0; i < 4; i++) {
+            const segmentCanvas = document.createElement('canvas');
+            const segmentCtx = segmentCanvas.getContext('2d')!;
+            
+            segmentCanvas.width = segmentWidth;
+            segmentCanvas.height = sourceCanvas.height;
+            
+            segmentCtx.drawImage(
+              sourceCanvas,
+              i * segmentWidth, 0, segmentWidth, sourceCanvas.height,
+              0, 0, segmentWidth, sourceCanvas.height
+            );
+            
+            const segmentImageData = segmentCanvas.toDataURL('image/png', 0.9);
+            
+            const newPage: PDFPage = {
+              ...page,
+              id: `${page.id}_split_v_${i}`,
+              name: `${page.name}_part_${i + 1}`,
+              imageData: segmentImageData,
+              parentPageId: page.id,
+              splitIndex: i,
+              order: page.order + (i * 0.001),
+              width: segmentWidth,
+              height: sourceCanvas.height,
+              crop: { x: i * segmentWidth, y: 0, width: segmentWidth, height: sourceCanvas.height },
+              splitLines: undefined,
+              isOriginal: false
+            };
+            
+            splitPages.push(newPage);
+          }
+        } else if (splitMode === 'grid') {
+          // Create 2 horizontal and 2 vertical splits (9 parts)
+          const segmentWidth = Math.floor(sourceCanvas.width / 3);
+          const segmentHeight = Math.floor(sourceCanvas.height / 3);
           
-          currentY = nextY + 2; // Small gap to avoid including split line
+          for (let row = 0; row < 3; row++) {
+            for (let col = 0; col < 3; col++) {
+              const index = row * 3 + col;
+              const segmentCanvas = document.createElement('canvas');
+              const segmentCtx = segmentCanvas.getContext('2d')!;
+              
+              segmentCanvas.width = segmentWidth;
+              segmentCanvas.height = segmentHeight;
+              
+              segmentCtx.drawImage(
+                sourceCanvas,
+                col * segmentWidth, row * segmentHeight, segmentWidth, segmentHeight,
+                0, 0, segmentWidth, segmentHeight
+              );
+              
+              const segmentImageData = segmentCanvas.toDataURL('image/png', 0.9);
+              
+              const newPage: PDFPage = {
+                ...page,
+                id: `${page.id}_split_g_${index}`,
+                name: `${page.name}_part_${index + 1}`,
+                imageData: segmentImageData,
+                parentPageId: page.id,
+                splitIndex: index,
+                order: page.order + (index * 0.001),
+                width: segmentWidth,
+                height: segmentHeight,
+                crop: { x: col * segmentWidth, y: row * segmentHeight, width: segmentWidth, height: segmentHeight },
+                splitLines: undefined,
+                isOriginal: false
+              };
+              
+              splitPages.push(newPage);
+            }
+          }
+        } else {
+          // Custom mode - use existing split lines
+          // Get the canvas element for this page to understand scaling
+          const displayCanvas = canvasRefs.current[page.id];
+          const scaleX = displayCanvas ? sourceCanvas.width / displayCanvas.width : 1;
+          const scaleY = displayCanvas ? sourceCanvas.height / displayCanvas.height : 1;
+          
+          // Sort split lines by Y coordinate and scale coordinates
+          const sortedLines = [...(page.splitLines || [])].map(line => ({
+            ...line,
+            points: line.points.map(p => ({
+              x: p.x * scaleX,
+              y: p.y * scaleY
+            }))
+          })).sort((a, b) => {
+            const avgYA = a.points.reduce((sum, p) => sum + p.y, 0) / a.points.length;
+            const avgYB = b.points.reduce((sum, p) => sum + p.y, 0) / b.points.length;
+            return avgYA - avgYB;
+          });
+          
+          let currentY = 0;
+          
+          // Create segments between split lines
+          for (let i = 0; i <= sortedLines.length; i++) {
+            const nextY = i < sortedLines.length 
+              ? Math.min(...sortedLines[i].points.map(p => p.y))
+              : sourceCanvas.height;
+            
+            const segmentHeight = Math.max(1, Math.floor(nextY - currentY));
+            
+            if (segmentHeight > 5) { // Only create segment if meaningful height
+              const segmentCanvas = document.createElement('canvas');
+              const segmentCtx = segmentCanvas.getContext('2d')!;
+              
+              segmentCanvas.width = sourceCanvas.width;
+              segmentCanvas.height = segmentHeight;
+              
+              // Copy the segment from source canvas with proper clipping
+              segmentCtx.drawImage(
+                sourceCanvas, 
+                0, Math.floor(currentY), sourceCanvas.width, segmentHeight,
+                0, 0, sourceCanvas.width, segmentHeight
+              );
+              
+              const segmentImageData = segmentCanvas.toDataURL('image/png', 0.9);
+              
+              const newPage: PDFPage = {
+                ...page,
+                id: `${page.id}_split_${i}`,
+                name: `${page.name}_part_${i + 1}`,
+                imageData: segmentImageData,
+                parentPageId: page.id,
+                splitIndex: i,
+                order: page.order + (i * 0.001), // Smaller increment for better ordering
+                width: sourceCanvas.width,
+                height: segmentHeight,
+                crop: { x: 0, y: 0, width: sourceCanvas.width, height: segmentHeight },
+                splitLines: undefined, // Remove split lines from segments
+                isOriginal: false
+              };
+              
+              splitPages.push(newPage);
+            }
+            
+            currentY = nextY + 2; // Small gap to avoid including split line
+          }
         }
         
         resolve(splitPages.length > 0 ? splitPages : [page]);
@@ -1208,6 +1375,127 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
       };
       img.src = page.imageData;
     });
+  };
+  
+  // Helper function to generate split lines based on mode
+  const generateSplitLines = (width: number, height: number, mode: 'horizontal' | 'vertical' | 'grid') => {
+    const lines: SplitLine[] = [];
+    
+    switch (mode) {
+      case 'horizontal':
+        // Create 3 horizontal splits (4 parts)
+        for (let i = 1; i <= 3; i++) {
+          const y = (height / 4) * i;
+          lines.push({
+            id: `split_h_${i}`,
+            points: [{ x: 0, y }, { x: width, y }],
+            isDrawing: false
+          });
+        }
+        break;
+      case 'vertical':
+        // Create 3 vertical splits (4 parts)
+        for (let i = 1; i <= 3; i++) {
+          const x = (width / 4) * i;
+          lines.push({
+            id: `split_v_${i}`,
+            points: [{ x, y: 0 }, { x, y: height }],
+            isDrawing: false
+          });
+        }
+        break;
+      case 'grid':
+        // Create 2 horizontal and 2 vertical splits (9 parts)
+        for (let i = 1; i <= 2; i++) {
+          const y = (height / 3) * i;
+          lines.push({
+            id: `split_g_h_${i}`,
+            points: [{ x: 0, y }, { x: width, y }],
+            isDrawing: false
+          });
+        }
+        for (let i = 1; i <= 2; i++) {
+          const x = (width / 3) * i;
+          lines.push({
+            id: `split_g_v_${i}`,
+            points: [{ x, y: 0 }, { x, y: height }],
+            isDrawing: false
+          });
+        }
+        break;
+    }
+    
+    return lines;
+  };
+  
+  // Helper function to process generated segments
+  const processGeneratedSegments = (sourceCanvas: HTMLCanvasElement, lines: SplitLine[]) => {
+    const segments: { imageData: string, x: number, y: number, width: number, height: number }[] = [];
+    let currentY = 0;
+    
+    for (let i = 0; i <= lines.length; i++) {
+      const nextY = i < lines.length 
+        ? Math.min(...lines[i].points.map(p => p.y))
+        : sourceCanvas.height;
+      
+      const segmentHeight = Math.max(1, Math.floor(nextY - currentY));
+      
+      if (segmentHeight > 5) { // Only create segment if meaningful height
+        const segmentCanvas = document.createElement('canvas');
+        const segmentCtx = segmentCanvas.getContext('2d')!;
+        
+        segmentCanvas.width = sourceCanvas.width;
+        segmentCanvas.height = segmentHeight;
+        
+        segmentCtx.drawImage(
+          sourceCanvas, 
+          0, Math.floor(currentY), sourceCanvas.width, segmentHeight,
+          0, 0, sourceCanvas.width, segmentHeight
+        );
+        
+        const segmentImageData = segmentCanvas.toDataURL('image/png', 0.9);
+        
+        segments.push({
+          imageData: segmentImageData,
+          x: 0,
+          y: currentY,
+          width: sourceCanvas.width,
+          height: segmentHeight
+        });
+      }
+      
+      currentY = nextY + 2; // Small gap to avoid including split line
+    }
+    
+    return segments;
+  };
+  
+  // Processing job management
+  const addProcessingJob = (sessionId: string, sessionName: string, type: 'pdf' | 'presentation' | 'upload', total: number): string => {
+    const jobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const newJob: ProcessingJob = {
+      id: jobId,
+      sessionId,
+      sessionName,
+      type,
+      status: 'processing',
+      progress: 0,
+      total,
+      message: `Starting ${type} processing...`,
+      timestamp: Date.now()
+    };
+    setProcessingJobs(prev => [...prev, newJob]);
+    setGlobalProcessingCount(prev => prev + 1);
+    return jobId;
+  };
+  
+  const updateProcessingJob = (jobId: string, updates: Partial<ProcessingJob>) => {
+    setProcessingJobs(prev => prev.map(job => job.id === jobId ? { ...job, ...updates } : job));
+  };
+  
+  const completeProcessingJob = (jobId: string, status: 'completed' | 'error', message: string) => {
+    setProcessingJobs(prev => prev.map(job => job.id === jobId ? { ...job, status, message, timestamp: Date.now() } : job));
+    setGlobalProcessingCount(prev => prev - 1);
   };
   
   const applySplitsToPage = async (pageId: string) => {
@@ -1250,21 +1538,65 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
     setPages(allSplitPages.sort((a, b) => a.order - b.order));
   };
   
+  // Enhanced split line drawing functions
+  const snapToGrid = (coordinate: number, gridSize: number = 50) => {
+    return Math.round(coordinate / gridSize) * gridSize;
+  };
+  
+  const snapToPoint = (point: {x: number, y: number}, canvas: HTMLCanvasElement) => {
+    if (!snapEnabled) return point;
+    
+    // Snap to canvas edges (10% from edges)
+    const edgeThreshold = Math.min(canvas.width, canvas.height) * 0.1;
+    if (point.x < edgeThreshold) return { ...point, x: 0 };
+    if (point.x > canvas.width - edgeThreshold) return { ...point, x: canvas.width };
+    if (point.y < edgeThreshold) return { ...point, y: 0 };
+    if (point.y > canvas.height - edgeThreshold) return { ...point, y: canvas.height };
+    
+    // Snap to guide lines
+    for (const guide of guideLines) {
+      if (guide.type === 'vertical' && Math.abs(point.x - guide.position) < 10) {
+        return { ...point, x: guide.position };
+      }
+      if (guide.type === 'horizontal' && Math.abs(point.y - guide.position) < 10) {
+        return { ...point, y: guide.position };
+      }
+    }
+    
+    // Snap to grid
+    return {
+      x: snapToGrid(point.x),
+      y: snapToGrid(point.y)
+    };
+  };
+  
   const startDrawingSplitLine = (pageId: string, event: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!splitMode) return;
+    if (splitMode !== 'custom') return;
     
     const canvas = canvasRefs.current[pageId];
     if (!canvas) return;
     
     const rect = canvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
+    let x = event.clientX - rect.left;
+    let y = event.clientY - rect.top;
+    
+    // Apply snapping
+    const snappedPoint = snapToPoint({ x, y }, canvas);
+    x = snappedPoint.x;
+    y = snappedPoint.y;
     
     setDrawingPageId(pageId);
     setIsDrawing(true);
     setCurrentSplitLine([{ x, y }]);
   };
   
+  // Calculate velocity between two points for pressure simulation
+  const calculateVelocity = (point1: {x: number, y: number}, point2: {x: number, y: number}, timeDelta: number) => {
+    if (timeDelta <= 0) return 0;
+    const distance = Math.sqrt(Math.pow(point2.x - point1.x, 2) + Math.pow(point2.y - point1.y, 2));
+    return distance / timeDelta;
+  };
+
   const continueDrawingSplitLine = (pageId: string, event: React.MouseEvent<HTMLCanvasElement>) => {
     if (!isDrawing || drawingPageId !== pageId) return;
     
@@ -1272,10 +1604,26 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
     if (!canvas) return;
     
     const rect = canvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
+    let x = event.clientX - rect.left;
+    let y = event.clientY - rect.top;
     
-    setCurrentSplitLine(prev => [...prev, { x, y }]);
+    // Apply snapping
+    const snappedPoint = snapToPoint({ x, y }, canvas);
+    x = snappedPoint.x;
+    y = snappedPoint.y;
+    
+    // For freehand curve mode, add pressure-sensitive points
+    if (splitMode === 'freehand-curve' && currentSplitLine.length > 0) {
+      const lastPoint = currentSplitLine[currentSplitLine.length - 1];
+      const velocity = calculateVelocity(lastPoint, {x, y}, 16); // Assume 16ms per frame
+      
+      // Simulate pressure based on velocity (slower = more pressure)
+      const pressure = Math.max(0.3, Math.min(1.5, 1.5 - velocity * 0.05));
+      
+      setCurrentSplitLine(prev => [...prev, { x, y, pressure }]);
+    } else {
+      setCurrentSplitLine(prev => [...prev, { x, y }]);
+    }
   };
   
   const finishDrawingSplitLine = () => {
@@ -1326,132 +1674,131 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
     }));
   };
   
+  // Enhanced drawing function for split lines
   const drawSplitLinesOnCanvas = useCallback((canvas: HTMLCanvasElement, page: PDFPage) => {
+    if (!canvas) return;
+  
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    
-    // Clear canvas but keep it transparent
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    // Save current state
-    ctx.save();
-    
-    // Draw existing split lines - ALWAYS visible with better visibility
-    if (page.splitLines && page.splitLines.length > 0) {
-      page.splitLines.forEach((line, lineIndex) => {
-        if (line.points && line.points.length > 1) {
-          // Draw line with gradient for better visibility
-          const gradient = ctx.createLinearGradient(
-            line.points[0].x, line.points[0].y, 
-            line.points[line.points.length - 1].x, line.points[line.points.length - 1].y
-          );
-          gradient.addColorStop(0, '#ff0000');
-          gradient.addColorStop(1, '#cc0000');
-          
-          ctx.strokeStyle = gradient;
-          ctx.lineWidth = 6; // Increased line width for better visibility
-          ctx.lineCap = 'round';
-          ctx.lineJoin = 'round';
-          ctx.shadowColor = 'rgba(255, 0, 0, 0.8)';
-          ctx.shadowBlur = 4;
-          
+  
+    // Draw guide lines if enabled
+    if (showGuides && guideLines.length > 0) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(0, 255, 255, 0.7)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([5, 5]);
+      
+      guideLines.forEach(guide => {
+        if (guide.type === 'vertical') {
           ctx.beginPath();
-          ctx.moveTo(line.points[0].x, line.points[0].y);
-          for (let i = 1; i < line.points.length; i++) {
-            ctx.lineTo(line.points[i].x, line.points[i].y);
-          }
+          ctx.moveTo(guide.position, 0);
+          ctx.lineTo(guide.position, canvas.height);
           ctx.stroke();
-          
-          // Reset shadow
-          ctx.shadowBlur = 0;
-          ctx.shadowColor = 'transparent';
-          
-          // Add numbered cut marks at start and end
-          ctx.fillStyle = '#ffffff';
-          ctx.strokeStyle = '#ff0000';
-          ctx.lineWidth = 2;
-          
-          // Start point
+        } else {
           ctx.beginPath();
-          ctx.arc(line.points[0].x, line.points[0].y, 8, 0, 2 * Math.PI);
-          ctx.fill();
+          ctx.moveTo(0, guide.position);
+          ctx.lineTo(canvas.width, guide.position);
           ctx.stroke();
-          
-          // End point
-          ctx.beginPath();
-          ctx.arc(line.points[line.points.length - 1].x, line.points[line.points.length - 1].y, 8, 0, 2 * Math.PI);
-          ctx.fill();
-          ctx.stroke();
-          
-          // Line number label with better visibility
-          const midIndex = Math.floor(line.points.length / 2);
-          const midPoint = line.points[midIndex];
-          ctx.fillStyle = '#ffffff';
-          ctx.strokeStyle = '#ff0000';
-          ctx.lineWidth = 1;
-          ctx.font = 'bold 14px Arial';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          
-          // Background circle for number
-          ctx.beginPath();
-          ctx.arc(midPoint.x, midPoint.y - 12, 10, 0, 2 * Math.PI);
-          ctx.fill();
-          ctx.stroke();
-          
-          // Number text
-          ctx.fillStyle = '#ff0000';
-          ctx.fillText((lineIndex + 1).toString(), midPoint.x, midPoint.y - 12);
-          
-          // Draw horizontal line across entire width for clearer splitting
-          ctx.strokeStyle = 'rgba(255, 0, 0, 0.6)';
-          ctx.lineWidth = 2;
-          ctx.setLineDash([5, 5]);
-          ctx.beginPath();
-          ctx.moveTo(0, midPoint.y);
-          ctx.lineTo(canvas.width, midPoint.y);
-          ctx.stroke();
-          ctx.setLineDash([]);
         }
       });
+      
+      ctx.restore();
     }
-    
-    // Draw current line being drawn with animation effect
-    if (isDrawing && drawingPageId === page.id && currentSplitLine.length > 1) {
-      ctx.strokeStyle = '#ff6666';
-      ctx.lineWidth = 5;
+  
+    // Draw existing split lines
+    if (page.splitLines && page.splitLines.length > 0) {
+      ctx.save();
+      ctx.strokeStyle = '#ff0000';
+      ctx.lineWidth = 2;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
-      ctx.setLineDash([8, 4]);
-      ctx.shadowColor = 'rgba(255, 102, 102, 0.6)';
-      ctx.shadowBlur = 3;
       
-      ctx.beginPath();
-      ctx.moveTo(currentSplitLine[0].x, currentSplitLine[0].y);
-      for (let i = 1; i < currentSplitLine.length; i++) {
-        ctx.lineTo(currentSplitLine[i].x, currentSplitLine[i].y);
-      }
-      ctx.stroke();
-      ctx.setLineDash([]);
+      page.splitLines.forEach(line => {
+        if (line.points.length > 1) {
+          ctx.beginPath();
+          
+          // Draw either straight lines or bezier curves based on line type
+          if (line.isCurve) {
+            // Draw smoothed bezier curve
+            const smoothedPoints = smoothCurvePoints(line.points);
+            if (smoothedPoints.length > 0) {
+              ctx.moveTo(smoothedPoints[0].x, smoothedPoints[0].y);
+              for (let i = 1; i < smoothedPoints.length; i++) {
+                ctx.lineTo(smoothedPoints[i].x, smoothedPoints[i].y);
+              }
+            }
+          } else {
+            // Draw regular straight lines
+            ctx.moveTo(line.points[0].x, line.points[0].y);
+            for (let i = 1; i < line.points.length; i++) {
+              ctx.lineTo(line.points[i].x, line.points[i].y);
+            }
+          }
+          
+          ctx.stroke();
+        }
+      });
       
-      // Draw preview horizontal line for current drawing
-      if (currentSplitLine.length > 0) {
-        const avgY = currentSplitLine.reduce((sum, p) => sum + p.y, 0) / currentSplitLine.length;
-        ctx.strokeStyle = 'rgba(255, 102, 102, 0.4)';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([3, 3]);
-        ctx.beginPath();
-        ctx.moveTo(0, avgY);
-        ctx.lineTo(canvas.width, avgY);
-        ctx.stroke();
-        ctx.setLineDash([]);
-      }
+      // Draw control points for existing lines
+      ctx.fillStyle = '#ffffff';
+      page.splitLines.forEach(line => {
+        line.points.forEach(point => {
+          ctx.beginPath();
+          ctx.arc(point.x, point.y, 6, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        });
+      });
+      
+      ctx.restore();
     }
-    
-    // Restore state
-    ctx.restore();
-  }, [isDrawing, drawingPageId, currentSplitLine]);
-
+  
+    // Draw currently drawing line
+    if (isDrawing && drawingPageId === page.id && currentSplitLine.length > 0) {
+      ctx.save();
+      ctx.strokeStyle = '#00ff00';
+      ctx.lineWidth = 2;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      
+      if (currentSplitLine.length > 1) {
+        ctx.beginPath();
+        // Draw either straight line or bezier curve for current drawing
+        const isCurveMode = splitMode === 'freehand-curve'; // We'll add this mode
+        
+        if (isCurveMode) {
+          // Draw smoothed bezier curve for current line
+          const smoothedPoints = smoothCurvePoints(currentSplitLine);
+          if (smoothedPoints.length > 0) {
+            ctx.moveTo(smoothedPoints[0].x, smoothedPoints[0].y);
+            for (let i = 1; i < smoothedPoints.length; i++) {
+              ctx.lineTo(smoothedPoints[i].x, smoothedPoints[i].y);
+            }
+          }
+        } else {
+          // Draw regular straight lines
+          ctx.moveTo(currentSplitLine[0].x, currentSplitLine[0].y);
+          for (let i = 1; i < currentSplitLine.length; i++) {
+            ctx.lineTo(currentSplitLine[i].x, currentSplitLine[i].y);
+          }
+        }
+        
+        ctx.stroke();
+      }
+      
+      // Draw control points for current line
+      ctx.fillStyle = '#ffff00';
+      currentSplitLine.forEach(point => {
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      });
+      
+      ctx.restore();
+    }
+  }, [isDrawing, drawingPageId, currentSplitLine, guideLines, showGuides, splitMode]);
+  
   const drawCircleShapesOnCanvas = useCallback((canvas: HTMLCanvasElement, page: PDFPage) => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -2570,7 +2917,7 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
   if (!isVisible) return null;
 
   return (
-      <div className="pdf-master" style={{
+      <div className="pdf-master-controls" style={{ 
         position: 'fixed',
         top: 0,
         left: 0,
@@ -3301,20 +3648,71 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
                 🔄 Reverse Order
               </button>
               <button
-                onClick={() => setSplitMode(!splitMode)}
+                onClick={() => setSplitMode(splitMode === 'off' ? 'custom' : 'off')}
                 style={{
-                  background: splitMode ? 'linear-gradient(45deg, #ff4444, #cc0000)' : 'rgba(255, 100, 100, 0.2)',
+                  background: splitMode !== 'off' ? 'linear-gradient(45deg, #ff4444, #cc0000)' : 'rgba(255, 100, 100, 0.2)',
                   border: '1px solid rgba(255, 100, 100, 0.3)',
                   borderRadius: '6px',
                   padding: '6px 12px',
-                  color: splitMode ? 'white' : '#ff6666',
+                  color: splitMode !== 'off' ? 'white' : '#ff6666',
                   cursor: 'pointer',
                   fontSize: '12px',
-                  fontWeight: splitMode ? 'bold' : 'normal'
+                  fontWeight: splitMode !== 'off' ? 'bold' : 'normal',
+                  position: 'relative'
                 }}
               >
-                {splitMode ? '✂️ Split ON' : '✂️ Split Images'}
+                {splitMode !== 'off' ? '✂️ Split ON' : '✂️ Split Images'}
               </button>
+              {splitMode !== 'off' && (
+                <div style={{
+                  position: 'absolute',
+                  top: '40px',
+                  left: '0',
+                  background: 'white',
+                  border: '1px solid #ddd',
+                  borderRadius: '6px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                  zIndex: 1000,
+                  padding: '10px',
+                  minWidth: '150px'
+                }}>
+                  <div style={{
+                    padding: '8px 12px',
+                    cursor: 'pointer',
+                    backgroundColor: splitMode === 'custom' ? '#e3f2fd' : 'transparent',
+                    borderRadius: '4px',
+                    marginBottom: '4px'
+                  }} onClick={() => setSplitMode('custom')}>
+                    ✍️ Freehand Draw
+                  </div>
+                  <div style={{
+                    padding: '8px 12px',
+                    cursor: 'pointer',
+                    backgroundColor: splitMode === 'horizontal' ? '#e3f2fd' : 'transparent',
+                    borderRadius: '4px',
+                    marginBottom: '4px'
+                  }} onClick={() => setSplitMode('horizontal')}>
+                    ↔️ Horizontal Split
+                  </div>
+                  <div style={{
+                    padding: '8px 12px',
+                    cursor: 'pointer',
+                    backgroundColor: splitMode === 'vertical' ? '#e3f2fd' : 'transparent',
+                    borderRadius: '4px',
+                    marginBottom: '4px'
+                  }} onClick={() => setSplitMode('vertical')}>
+                    ↕️ Vertical Split
+                  </div>
+                  <div style={{
+                    padding: '8px 12px',
+                    cursor: 'pointer',
+                    backgroundColor: splitMode === 'grid' ? '#e3f2fd' : 'transparent',
+                    borderRadius: '4px'
+                  }} onClick={() => setSplitMode('grid')}>
+                    #️⃣ 3x3 Grid Split
+                  </div>
+                </div>
+              )}
               <button
                 onClick={toggleGroupMode}
                 style={{

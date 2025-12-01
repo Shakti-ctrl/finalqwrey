@@ -1,0 +1,1850 @@
+<!DOCTYPE html>
+<html itemscope itemtype="http://schema.org/Thing">
+
+<!--
+This file is part of MolView (http://molview.org)
+Copyright (c) 2014-2023 Herman Bergwerf
+-->
+
+<!--
+Query parameters:
+- q = search query (lookup using CIR)
+- smiles = resolve SMILES string
+- cid = load CID
+- pdbid = load PDBID
+- codid = load CIF from COD
+- mode = balls || stick || vdw || wireframe || line
+- chainType = ribbon || cylinders || btube || ctrace || bonds (alias for chainBonds=bonds)
+- chainBonds = true || false
+- chainColor = ss || spectrum || chain || residue || polarity || bfactor
+- bg = black || gray || white
+-->
+
+        <head>
+                <title>MolView</title>
+                <meta charset="UTF-8" />
+                <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+                <meta name="viewport" content="width=device-width, user-scalable=no" />
+                <meta name="author" content="Herman Bergwerf" />
+                <meta name="theme-color" content="white" />
+                <meta name="mobile-web-app-capable" content="yes">
+                <meta name="apple-mobile-web-app-capable" content="yes" />
+                <meta name="apple-mobile-web-app-status-bar-style" content="default">
+                <meta property="og:type" content="website" />
+                <meta property="og:site_name" content="MolView" />
+
+                <link rel="apple-touch-icon" href="img/molview-logo.png">
+                <link rel="shortcut icon" href="favicon-32x32.png" />
+                <link rel="manifest" href="manifest.json">
+
+                <!-- CSS -->
+                <link type="text/css" rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/font-awesome/4.2.0/css/font-awesome.css" />
+                <link type="text/css" rel="stylesheet" href="//fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,700italic,400,300,700" />
+                <link type="text/css" rel="stylesheet" href="build/molview-app.min.css" />
+                <link id="theme-stylesheet" type="text/css" rel="stylesheet" href="build/molview-desktop.min.css" media="screen" />
+
+                <!-- JS -->
+                <script type="text/javascript" src="build/molview-base.min.js"></script>
+                <script type="text/javascript" src="build/molview-applib.min.js"></script>
+                <script type="text/javascript" src="build/molview-datasets.min.js"></script>
+                <script type="text/javascript" src="build/molview-core.min.js"></script>
+                <script type="text/javascript" src="build/molview-molpad.min.js"></script>
+                <script type="text/javascript" src="build/molview-app.min.js"></script>
+
+                <!-- Setup -->
+                <script type="text/javascript">
+                        Model.JSmol.hq = true;
+                        MolView.touch = false;
+                        MolView.mobile = false;
+                        MolView.layout = 'layout-vsplit';
+                        Request.CIR.available = true;
+                        if(!Detector.canvas) {
+                                window.location = window.location.origin + window.location.pathname + "htmlCanvas";
+                        }
+                </script>
+
+                <!-- Google tag (gtag.js) -->
+                <script async src="https://www.googletagmanager.com/gtag/js?id=G-XB95HZ8NES"></script>
+                <script>
+                        window.dataLayer = window.dataLayer || [];
+                        function gtag(){dataLayer.push(arguments);}
+                        gtag('js', new Date());
+                        gtag('config', 'G-XB95HZ8NES');
+                </script>
+
+                <!-- Matomo Analytics -->
+                <script>
+                        var _paq = window._paq = window._paq || [];
+                        _paq.push(['trackPageView']);
+                        _paq.push(['enableLinkTracking']);
+                        _paq.push(['enableJSErrorTracking']);
+                        (function() {
+                                var u="//analytics.molview.org/";
+                                _paq.push(['setTrackerUrl', u+'matomo.php']);
+                                _paq.push(['setSiteId', '1']);
+                                var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
+                                g.async=true; g.src=u+'matomo.js'; s.parentNode.insertBefore(g,s);
+                        })();
+                </script>
+        </head>
+        <body>
+                <svg width="0" height="0">
+                        <filter id="pubchemImageFilter" height="1" width="1" y="0" x="0" color-interpolation-filters="sRGB">
+                                <feColorMatrix
+                                        in="SourceGraphic"
+                                        type="matrix"
+                                        values="1.05 0    0    0 0
+                                                0    1.05 0    0 0
+                                                0    0    1.05 0 0
+                                                0    0    0    1 0"></feColorMatrix>
+                        </filter>
+                </svg>
+                <!-- Progress window removed -->
+                <div id="menu">
+                        <div id="menu-bar" class="hstack">
+                                <div id="brand"></div>
+                                <form id="search" class="hstack" action="index.html">
+                                        <div class="input-wrapper">
+                                                <button><i class="fa fa-search"></i></button>
+                                                <input id="search-input" name="q" type="text" autocomplete="off" spellcheck="false" />
+                                                <div class="input-focus"></div>
+                                                <div id="search-dropdown" class="dropdown">
+                                                        <a class="dropdown-toggle"></a>
+                                                        <ul class="dropdown-menu dropdown-left">
+                                                                <li class="menu-item"><a id="action-show-search-layer">Show last search results</a></li>
+                                                                <li class="menu-header">Advanced search</li>
+                                                                <li class="menu-item"><a id="action-search-pubchem">PubChem Compounds</a></li>
+                                                                <li class="menu-item"><a id="action-search-rcsb">RCSB Protein Data Bank</a></li>
+                                                                <!-- <li class="menu-item"><a id="action-search-cod">Crystallography Open Database</a></li> -->
+                                                        </ul>
+                                                </div>
+                                        </div>
+                                </form>
+                                <ul id="main-menu" class="hstack">
+                                        <li id="pwa-install-btn" style="display: none;">
+                                                <button id="install-pwa-button" style="background: #4CAF50; color: white; border: none; padding: 8px 15px; border-radius: 4px; margin-right: 10px; cursor: pointer; font-size: 13px;" title="Install MolView as a Progressive Web App">
+                                                        📦 Install App
+                                                </button>
+                                        </li>
+                                        <li id="desktop-mode-btn">
+                                                <button id="desktop-mode-button" style="background: #2196F3; color: white; border: none; padding: 8px 15px; border-radius: 4px; margin-right: 10px; cursor: pointer; font-size: 13px;" title="Toggle Desktop Mode" onclick="toggleDesktopMode()">
+                                                        💻 Desktop Mode
+                                                </button>
+                                        </li>
+                                        <li id="molview-dropdown" class="dropdown">
+                                                <a class="dropdown-toggle">MolView</a>
+                                                <ul class="dropdown-menu">
+                                                        <li class="menu-header">Layout</li>
+                                                        <li id="layout-menu">
+                                                                <a id="action-layout-model"></a>
+                                                                <a id="action-layout-hsplit"></a>
+                                                                <br/>
+                                                                <a id="action-layout-vsplit" class="selected"></a>
+                                                                <a id="action-layout-sketcher"></a>
+                                                        </li>
+                                                        <li class="menu-header">Theme</li>
+                                                        <li class="menu-item"><a id="action-theme-desktop" class="radio checked">Desktop</a></li>
+                                                        <li class="menu-item"><a id="action-theme-touch" class="radio">Touch</a></li>
+                                                        <li class="menu-header">Information</li>
+                                                        <li class="menu-item"><a id="action-help">Help</a></li>
+                                                        <li class="menu-item"><a id="action-about">About</a></li>
+                                                </ul>
+                                        </li>
+                                        <li id="tools-dropdown" class="dropdown">
+                                                <a class="dropdown-toggle">Tools</a>
+                                                <ul class="dropdown-menu">
+                                                        <li class="menu-header">Link</li>
+                                                        <li class="menu-item"><a id="action-embed">Embed</a></li>
+                                                        <li class="menu-header">Export</li>
+                                                        <li class="menu-item"><a id="action-export-sketcher-png">Structural formula image</a></li>
+                                                        <li class="menu-item"><a id="action-export-model-png">3D model image</a></li>
+                                                        <li class="menu-item"><a id="action-export-model">MOL file</a></li>
+                                                        <li class="menu-header">Chemical data</li>
+                                                        <li class="menu-item"><a id="action-data-infocard">Information card</a></li>
+                                                        <li class="menu-item"><a id="action-data-spectra">Spectroscopy</a></li>
+                                                        <li class="menu-item"><a id="model-source" class="disabled" target="_blank">3D model source</a></li>
+                                                        <li class="menu-header">Advanced search</li>
+                                                        <li class="menu-item"><a id="action-search-similarity">Similarity</a></li>
+                                                        <li class="menu-item"><a id="action-search-substructure">Substructure</a></li>
+                                                        <li class="menu-item"><a id="action-search-superstructure">Superstructure</a></li>
+                                                </ul>
+                                        </li>
+                                        <li id="model-dropdown" class="dropdown">
+                                                <a class="dropdown-toggle">Model</a>
+                                                <ul class="dropdown-menu">
+                                                        <li class="menu-item"><a id="action-model-reset">Reset</a></li>
+                                                        <li class="menu-header">Representation</li>
+                                                        <li class="menu-item"><a id="action-model-balls" class="r-mode radio checked">Ball and Stick</a></li>
+                                                        <li class="menu-item"><a id="action-model-stick" class="r-mode radio">Stick</a></li>
+                                                        <li class="menu-item"><a id="action-model-vdw" class="r-mode radio">van der Waals Spheres</a></li>
+                                                        <li class="menu-item"><a id="action-model-wireframe" class="r-mode radio">Wireframe</a></li>
+                                                        <li class="menu-item"><a id="action-model-line" class="r-mode radio">Line</a></li>
+                                                        <li class="menu-header">Background</li>
+                                                        <li class="menu-item"><a id="action-model-bg-black" class="model-bg radio checked">Black</a></li>
+                                                        <li class="menu-item"><a id="action-model-bg-gray" class="model-bg radio">Gray</a></li>
+                                                        <li class="menu-item"><a id="action-model-bg-white" class="model-bg radio">White</a></li>
+                                                        <li class="menu-header">Engine</li>
+                                                        <li class="menu-item"><a id="action-engine-glmol" class="radio checked">GLmol</a></li>
+                                                        <li class="menu-item"><a id="action-engine-jmol" class="radio">Jmol</a></li>
+                                                        <li class="menu-item"><a id="action-engine-cdw" class="radio">ChemDoodle</a></li>
+                                                        <li class="menu-header">Crystallography</li>
+                                                        <li class="menu-item"><a id="action-cif-unit-cell">Load unit cell</a></li>
+                                                        <li class="menu-item"><a id="action-cif-cubic-supercell">Load 2&times;2&times;2 supercell</a></li>
+                                                        <li class="menu-item"><a id="action-cif-flat-supercell">Load 1&times;3&times;3 supercell</a></li>
+                                                </ul>
+                                        </li>
+                                        <li id="protein-dropdown" class="dropdown">
+                                                <a class="dropdown-toggle">Protein</a>
+                                                <ul class="dropdown-menu">
+                                                        <li class="menu-item"><a id="action-bio-assembly" class="check">Show bio assembly</a></li>
+                                                        <li class="menu-header">Chain representation</li>
+                                                        <li class="menu-item"><a id="action-chain-type-ribbon" class="chain-type radio checked">Ribbon</a></li>
+                                                        <li class="menu-item"><a id="action-chain-type-cylinders" class="chain-type radio">Cylinder and plate</a></li>
+                                                        <li class="menu-item"><a id="action-chain-type-btube" class="chain-type radio">B-factor tube</a></li>
+                                                        <li class="menu-item"><a id="action-chain-type-ctrace" class="chain-type radio">C-alpha trace</a></li>
+                                                        <li class="menu-divider"></li>
+                                                        <li class="menu-item"><a id="action-chain-type-bonds" class="check">Bonds</a></li>
+                                                        <li class="menu-header">Chain color scheme</li>
+                                                        <li class="menu-item"><a id="action-chain-color-ss" class="chain-color radio checked">Secondary structure</a></li>
+                                                        <li class="menu-item"><a id="action-chain-color-spectrum" class="chain-color radio">Spectrum</a></li>
+                                                        <li class="menu-item"><a id="action-chain-color-chain" class="chain-color radio">Chain</a></li>
+                                                        <li class="menu-item"><a id="action-chain-color-residue" class="chain-color radio">Residue</a></li>
+                                                        <li class="menu-item"><a id="action-chain-color-polarity" class="chain-color radio">Polarity</a></li>
+                                                        <li class="menu-item"><a id="action-chain-color-bfactor" class="chain-color radio">B-factor</a></li>
+                                                </ul>
+                                        </li>
+                                        <li id="library-dropdown" class="dropdown">
+                                                <a class="dropdown-toggle">Library</a>
+                                                <ul class="dropdown-menu">
+                                                        <li class="menu-header">Upload Content</li>
+                                                        <li class="menu-item"><a id="action-upload-3d-structure">Upload 3D Structure</a></li>
+                                                        <li class="menu-item"><a id="action-upload-animation">Upload Animation Video</a></li>
+                                                        <li class="menu-header">My Library</li>
+                                                        <li class="menu-item"><a id="action-view-saved-structures">Saved Structures</a></li>
+                                                        <li class="menu-item"><a id="action-view-saved-animations">Saved Animations</a></li>
+                                                        <li class="menu-item"><a id="action-clear-library">Clear Library</a></li>
+                                                </ul>
+                                        </li>
+                                        <li id="jmol-dropdown" class="dropdown">
+                                                <a class="dropdown-toggle">Jmol</a>
+                                                <ul class="dropdown-menu">
+                                                        <li class="menu-item"><a id="action-jmol-hq" class="check">High Quality</a></li>
+                                                        <li class="menu-item"><a id="action-jmol-clean" class="jmol-script">Clear</a></li>
+                                                        <li class="menu-header jmol-script jmol-calc">Calculations</li>
+                                                        <li class="menu-item"><a id="action-jmol-mep-lucent" class="jmol-script jmol-calc">MEP surface lucent</a></li>
+                                                        <li class="menu-item"><a id="action-jmol-mep-opaque" class="jmol-script jmol-calc">MEP surface opaque</a></li>
+                                                        <li class="menu-item"><a id="action-jmol-charge" class="jmol-script jmol-calc">Charge</a></li>
+                                                        <li class="menu-item"><a id="action-jmol-bond-dipoles" class="jmol-script jmol-calc">Bond dipoles</a></li>
+                                                        <li class="menu-item"><a id="action-jmol-net-dipole" class="jmol-script jmol-calc">Overall dipole</a></li>
+                                                        <li class="menu-item"><a id="action-jmol-minimize" class="jmol-script jmol-calc">Energy minimization</a></li>
+                                                        <li class="menu-header jmol-script jmol-calc">Advanced Calculations</li>
+                                                        <li class="menu-item"><a id="action-jmol-orbitals-homo" class="jmol-script jmol-calc">HOMO Orbitals</a></li>
+                                                        <li class="menu-item"><a id="action-jmol-orbitals-lumo" class="jmol-script jmol-calc">LUMO Orbitals</a></li>
+                                                        <li class="menu-item"><a id="action-jmol-vdw-surface" class="jmol-script jmol-calc">VDW Surface</a></li>
+                                                        <li class="menu-item"><a id="action-jmol-sa-surface" class="jmol-script jmol-calc">Solvent Accessible Surface</a></li>
+                                                        <li class="menu-item"><a id="action-jmol-nmr-calc" class="jmol-script jmol-calc">NMR Calculation</a></li>
+                                                        <li class="menu-item"><a id="action-jmol-ir-calc" class="jmol-script jmol-calc">IR Frequencies</a></li>
+                                                        <li class="menu-item"><a id="action-jmol-hbonds-calc" class="jmol-script jmol-calc">Hydrogen Bonds</a></li>
+                                                        <li class="menu-item"><a id="action-jmol-unitcell" class="jmol-script jmol-calc">Show Unit Cell</a></li>
+                                                        <li class="menu-item"><a id="action-jmol-symmetry" class="jmol-script jmol-calc">Crystal Symmetry</a></li>
+                                                        <li class="menu-header jmol-script">Measurement</li>
+                                                        <li class="menu-item"><a id="action-jmol-measure-distance" class="jmol-script jmol-picking radio">Distance</a></li>
+                                                        <li class="menu-item"><a id="action-jmol-measure-angle" class="jmol-script jmol-picking radio">Angle</a></li>
+                                                        <li class="menu-item"><a id="action-jmol-measure-torsion" class="jmol-script jmol-picking radio">Torsion</a></li>
+                                                </ul>
+                                        </li>
+                                </ul>
+                        </div>
+                </div>
+                <div id="content">
+                        <div id="main-layer" class="layer layout-vsplit">
+                                <!-- Dynamic onload layout -->
+                                <script type="text/javascript">
+                                        MolView.query = getQuery();
+
+                                        if(localStorage && localStorage["molview.theme"])
+                                        {
+                                                MolView.setTheme(localStorage["molview.theme"]);
+                                        }
+
+                                        if($(window).height() > $(window).width()
+                                                && !MolView.query.layout
+                                                && MolView.layout != "model") Actions.layout_hsplit();
+
+                                        //compact menu bar
+                                        MolView.setMenuLayout($(window).width() < 1100,
+                                                        $(window).width() < 1100 && !MolView.touch,
+                                                        $(window).width() < 390 && MolView.touch);
+                                </script>
+                                <div id="sketcher">
+                                        <div id="molpad" class="sketcher">
+                                                <div id="chem-tools" class="toolbar">
+                                                        <div class="toolbar-inner">
+                                                                <div id="action-mp-bond-single" class="tool-button primary-tool" title="Single bond"></div>
+                                                                <div id="action-mp-bond-double" class="tool-button primary-tool" title="Double bond"></div>
+                                                                <div id="action-mp-bond-triple" class="tool-button primary-tool" title="Triple bond"></div>
+                                                                <div id="action-mp-bond-wedge" class="tool-button primary-tool" title="Wedge bond"></div>
+                                                                <div id="action-mp-bond-hash" class="tool-button primary-tool" title="Hash bond"></div>
+                                                                <div class="vertical-separator"></div>
+                                                                <div id="action-mp-frag-benzene" class="tool-button primary-tool" title="Benzene"></div>
+                                                                <div id="action-mp-frag-cyclopropane" class="tool-button primary-tool" title="Cyclopropane"></div>
+                                                                <div id="action-mp-frag-cyclobutane" class="tool-button primary-tool" title="Cyclobutane"></div>
+                                                                <div id="action-mp-frag-cyclopentane" class="tool-button primary-tool" title="Cyclopentane"></div>
+                                                                <div id="action-mp-frag-cyclohexane" class="tool-button primary-tool" title="Cyclohexane"></div>
+                                                                <div id="action-mp-frag-cycloheptane" class="tool-button primary-tool" title="Cycloheptane"></div>
+                                                                <div class="vertical-separator"></div>
+                                                                <div id="action-mp-chain" class="tool-button primary-tool" title="Carbon chain"></div>
+                                                                <div id="action-mp-charge-add" class="tool-button primary-tool" title="Charge +">e<sup>+</sup></div>
+                                                                <div id="action-mp-charge-sub" class="tool-button primary-tool" title="Charge -">e<sup>&minus;</sup></div>
+                                                        </div>
+                                                </div>
+                                                <div id="edit-tools" class="toolbar">
+                                                        <div class="toolbar-inner hstack">
+                                                                <div id="action-mp-clear" class="tool-button tool-button-horizontal" title="Clear all"></div>
+                                                                <div id="action-mp-eraser" class="tool-button tool-button-horizontal primary-tool" title="Erase"></div>
+                                                                <div class="horizontal-separator"></div>
+                                                                <div id="action-mp-undo" class="tool-button tool-button-horizontal tool-button-disabled" title="Undo"></div>
+                                                                <div id="action-mp-redo" class="tool-button tool-button-horizontal tool-button-disabled" title="Redo"></div>
+                                                                <div class="horizontal-separator"></div>
+                                                                <div id="action-mp-drag" class="tool-button tool-button-horizontal primary-tool" title="Drag atoms and bonds"></div>
+                                                                <div id="action-mp-rect" class="tool-button tool-button-horizontal primary-tool" title="Rectangle selection"></div>
+                                                                <div id="action-mp-lasso" class="tool-button tool-button-horizontal primary-tool" title="Lasso selection"></div>
+                                                                <div class="horizontal-separator"></div>
+                                                                <div id="action-mp-color-mode" class="tool-button tool-button-horizontal enabled" title="Toggle color mode"></div>
+                                                                <div id="action-mp-skeletal-formula" class="tool-button tool-button-horizontal enabled" title="Toggle skeletal formula"></div>
+                                                                <div id="action-mp-center" class="tool-button tool-button-horizontal" title="Center structure"></div>
+                                                                <div class="horizontal-separator"></div>
+                                                                <div id="action-mp-clean" class="tool-button tool-button-horizontal" title="Clean structure"></div>
+                                                                <div id="action-resolve" class="tool-button tool-button-horizontal" title="Update 3D view">2D to 3D</div>
+                                                        </div>
+                                                </div>
+                                                <div id="elem-tools" class="toolbar">
+                                                        <div class="toolbar-inner">
+                                                                <div id="action-mp-atom-c" class="tool-button primary-tool tool-element element-colored" title="Carbon">C</div>
+                                                                <div id="action-mp-atom-h" class="tool-button primary-tool tool-element element-colored" title="Hydrogen">H</div>
+                                                                <div id="action-mp-atom-n" class="tool-button primary-tool tool-element element-colored" title="Nitrogen">N</div>
+                                                                <div id="action-mp-atom-o" class="tool-button primary-tool tool-element element-colored" title="Oxygen">O</div>
+                                                                <div id="action-mp-atom-p" class="tool-button primary-tool tool-element element-colored" title="Phosphorus">P</div>
+                                                                <div id="action-mp-atom-s" class="tool-button primary-tool tool-element element-colored" title="Sulfur">S</div>
+                                                                <div id="action-mp-atom-f" class="tool-button primary-tool tool-element element-colored" title="Fluorine">F</div>
+                                                                <div id="action-mp-atom-cl" class="tool-button primary-tool tool-element element-colored" title="Chlorine">Cl</div>
+                                                                <div id="action-mp-atom-br" class="tool-button primary-tool tool-element element-colored" title="Bromine">Br</div>
+                                                                <div id="action-mp-atom-i" class="tool-button primary-tool tool-element element-colored" title="Iodine">I</div>
+                                                                <div id="action-mp-periodictable" class="tool-button primary-tool" title="Periodic Table">...</div>
+                                                        </div>
+                                                </div>
+                                                <div id="molpad-canvas-wrapper"></div>
+                                        </div>
+                                </div>
+                                <div id="model">
+                                        <!-- 3D View Refresh Button -->
+                                        <div style="position: absolute; top: 10px; right: 10px; z-index: 1000;">
+                                                <button id="refresh-3d-button" style="background: #FF9800; color: white; border: none; padding: 8px 12px; border-radius: 50%; cursor: pointer; font-size: 16px; box-shadow: 0 2px 5px rgba(0,0,0,0.3);" title="Refresh 3D View" onclick="refresh3DView()">
+                                                        🔄
+                                                </button>
+                                        </div>
+                                        <!-- Get preferred model background color from localStorage -->
+                                        <script type="text/javascript">
+                                                if(localStorage && localStorage["model.background"])
+                                                {
+                                                        var c = localStorage["model.background"];
+                                                        $("#model").css("background", c == "gray" ? "#ccc" : c);
+                                                }
+                                        </script>
+                                        <div id="chemdoodle" class="render-engine" style="display: none;">
+                                                <canvas id="chemdoodle-canvas"></canvas>
+                                        </div>
+                                        <div id="jsmol" class="render-engine" style="display: none;"></div>
+                                        <div id="glmol" class="render-engine" style="display: none;"></div>
+                                </div>
+                        </div>
+                        <div id="search-layer" class="layer" style="display: none;">
+                                <div class="btn-group-bar">
+                                        <button class="btn close btn-primary "><i class="fa fa-arrow-left"></i> Return</button>
+                                </div>
+                                <div class="container"></div>
+                                <div id="action-load-more-pubchem" class="load-more" style="display: none;"></div>
+                                <div id="action-load-more-rcsb" class="load-more" style="display: none;"></div>
+                                <div id="action-load-more-cod" class="load-more" style="display: none;"></div>
+                        </div>
+                        <div id="infocard-layer" class="layer data-layer" style="display: none;">
+                                <div class="btn-group-bar">
+                                        <button class="btn close btn-primary "><i class="fa fa-arrow-left"></i> Return</button>
+                                </div>
+                                <div id="properties-wrapper">
+                                        <div id="general-properties">
+                                                <div id="molecule-image-wrapper" class="properties-block">
+                                                        <img id="molecule-image" style="filter: url('#pubchemImageFilter');" />
+                                                </div>
+                                                <div class="properties-block">
+                                                        <div id="molecule-info">
+                                                                <h3 id="molecule-title"></h3>
+                                                                <p id="molecule-description"></p>
+                                                        </div>
+                                                        <table id="common-chem-props">
+                                                                <tr id="prop-formula-wrapper"><td>Formula</td><td id="prop-formula" class="chemprop"></td></tr>
+                                                                <tr id="prop-mw-wrapper"><td>Molecular weight</td><td id="prop-mw" class="chemprop"></td></tr>
+                                                                <tr id="prop-donors-wrapper"><td>Hydrogen bond donors</td><td id="prop-donors" class="chemprop"></td></tr>
+                                                                <tr id="prop-acceptors-wrapper"><td>Hydrogen bond acceptors</td><td id="prop-acceptors" class="chemprop"></td></tr>
+                                                        </table>
+                                                        <h3 id="percent-composition-title">Percent composition</h3>
+                                                        <table id="percent-composition-table"></table>
+                                                </div>
+                                        </div>
+                                        <div id="prop-sysname-wrapper" class="chem-identifier">
+                                                <label for="prop-sysname">Systematic name</label>
+                                                <input type="text" id="prop-sysname" class="input chemprop" autocomplete="off" spellcheck="false" />
+                                        </div>
+                                        <div id="prop-canonicalsmiles-wrapper" class="chem-identifier">
+                                                <label for="prop-canonicalsmiles">Canonical SMILES</label>
+                                                <input type="text" id="prop-canonicalsmiles" class="input chemprop" autocomplete="off" spellcheck="false" />
+                                        </div>
+                                        <div id="prop-isomericsmiles-wrapper" class="chem-identifier">
+                                                <label for="prop-isomericsmiles">Isomeric SMILES</label>
+                                                <input type="text" id="prop-isomericsmiles" class="input chemprop" autocomplete="off" spellcheck="false" />
+                                        </div>
+                                        <div id="prop-inchikey-wrapper" class="chem-identifier">
+                                                <label for="prop-inchikey">InChIKey</label>
+                                                <input type="text" id="prop-inchikey" class="input chemprop" autocomplete="off" spellcheck="false" />
+                                        </div>
+                                        <div id="prop-inchi-wrapper" class="chem-identifier">
+                                                <label for="prop-inchi">InChI</label>
+                                                <input type="text" id="prop-inchi" class="input chemprop" autocomplete="off" spellcheck="false" />
+                                        </div>
+                                        <div id="prop-cas-wrapper" class="chem-identifier">
+                                                <label for="cas-sysname">CAS Number</label>
+                                                <input type="text" id="prop-cas" class="input chemprop" autocomplete="off" spellcheck="false" />
+                                        </div>
+                                        <div id="prop-csid-wrapper" class="chem-identifier">
+                                                <label for="prop-csid">Chemspider ID
+                                                        <a id="chemspider-link" class="link chem-link" target="_blank"><i class="fa fa-external-link"></i></a>
+                                                </label>
+                                                <input type="text" id="prop-csid" class="input chemprop" autocomplete="off" spellcheck="false" />
+                                        </div>
+                                        <div id="prop-cid-wrapper" class="chem-identifier">
+                                                <label for="prop-cid">PubChem Compound ID
+                                                        <a id="pubchem-link" class="link chem-link" target="_blank"><i class="fa fa-external-link"></i></a>
+                                                </label>
+                                                <input type="text" id="prop-cid" class="input chemprop" autocomplete="off" spellcheck="false" />
+                                        </div>
+                                </div>
+                        </div>
+                        <div id="spectra-layer" class="layer data-layer" style="display: none;">
+                                <div class="btn-group-bar">
+                                        <button class="btn close btn-primary "><i class="fa fa-arrow-left"></i> Return</button>
+                                        <select id="spectrum-select"></select>
+                                        <button id="action-export-spectrum-png" class="btn"><i class="fa fa-download"></i> Download PNG image</button>
+                                        <button id="action-export-spectrum-jcamp" class="btn"><i class="fa fa-download"></i> Download JCAMP data</button>
+                                        <a id="spectrum-nist-source" class="btn" target="_blank"><i class="fa fa-external-link"></i> NIST source</a>
+                                </div>
+                                <div id="spectrum-wrapper">
+                                        <canvas id="spectrum-canvas"></canvas>
+                                </div>
+                        </div>
+                </div>
+                <div id="messages"></div>
+                <div id="autocomplete-dropdown-wrapper" style="display: none;">
+                        <div id="autocomplete-dropdown"></div>
+                </div>
+                <div id="dialog-overlay" class="dialog-overlay">
+                        <div id="dialog-click-area">
+                                <div id="dialog-wrapper">
+                                        <div class="dialog" id="start-dialog">
+                                                <img id="welcome-logo" src="img/molview-logo.png" alt="MolView" style="width: 120px; height: 120px; border-radius: 15px;" />
+                                                <div style="font-size: 24px; font-weight: bold; color: #333; margin-top: 15px; text-align: center;">MolView</div>
+                                                <div id="welcome-loading-msg">LOADING&hellip;</div>
+                                                <p style="max-width: 35em; text-align: left; margin: 1em auto">
+                                                        Welcome to MolView! Start by searching for a molecule or drawing your own structure.
+                                                </p>
+                                                <div id="welcome-button-bar" class="btn-group" style="display: none;">
+                                                        <button class="btn close btn-large btn-primary">Close</button>
+                                                </div>
+                                                <p style="margin-top: 2em;">By closing this popup and using MolView, you agree to the <a class="link" href="legal" target="_blank">Terms of Use</a>.</p>
+                                                <!--
+                                                <p>We need your support to create more cool stuff! <a class="btn" target="_blank" title="Consider donating to this project" href="https://www.patreon.com/molview">Donate</a></p>
+                                                <div class="btn-group">
+                                                        <a class="btn" target="_blank" href="https://www.youtube.com/@molview">YouTube channel</a>
+                                                        <a class="btn" target="_blank" href="http://blog.molview.org">MolView blog</a>
+                                                </div> -->
+                                        </div>
+                                        <div class="dialog" id="about-dialog" style="display: none;">
+                                                <h2>About</h2>
+                                                <p>MolView is an intuitive web-application to make science and education more awesome! MolView is mainly intended as web-based data visualization platform. You can use MolView to search through different scientific databases including compound databases, protein databases and spectral databases, and view records from these databases as interactive visualizations using WebGL and HTML5 technologies. This web application is built on top of the JavaScript libraries and online services listed below. The <a class="link" href="https://chemagic.org/molecules/amini.html" target="_blank" title="Virtual Model Kit">Virtual Model Kit</a> has been a source of inspiration for the birth of this project.</p>
+                                                <ul>
+                                                        <li>JavaScript libraries
+                                                                <ul>
+                                                                        <li><a class="link" href="http://ggasoftware.com/opensource/ketcher" target="_blank" title="Ketcher">Ketcher</a>: Chemical 2D data reader/writer</li>
+                                                                        <li><a class="link" href="http://webglmol.sourceforge.jp/index-en.html" target="_blank" title="GLmol">GLmol v0.47</a>: primary 3D render engine</li>
+                                                                        <li><a class="link" href="http://jmol.sourceforge.net/" target="_blank" title="JSmol">JSmol</a>: 3D render engine</li>
+                                                                        <li><a class="link" href="http://web.chemdoodle.com/" target="_blank" title="ChemDoodle Web">ChemDoodle Web Components v6.0.1</a>: 3D render engine and spectrum display</li>
+                                                                </ul>
+                                                        </li>
+                                                        <li>Databases/REST API's
+                                                                <ul>
+                                                                        <li><a class="link" href="http://cactus.nci.nih.gov/chemical/structure" target="_blank" title="NCI/CADD Chemical Identifier Resolver API">NCI/CADD Chemical Identifier Resolver</a></li>
+                                                                        <li><a class="link" href="http://www.rcsb.org/pdb/software/rest.do" target="_blank" title="RCSB Protein Databank API">RCSB Protein Data Bank</a> (~100.000 macromolecules)</li>
+                                                                        <li><a class="link" href="https://pubchem.ncbi.nlm.nih.gov/pug_rest/PUG_REST.html" target="_blank" title="The PubChem Project API">The PubChem Project</a> (~51 million compounds)</li>
+                                                                        <li><a class="link" href="http://www.crystallography.net/" target="_blank" title="COD">Crystallography Open Database</a> (~300.000 crystals)</li>
+                                                                        <li><a class="link" href="http://webbook.nist.gov/chemistry" target="_blank" title="NIST Chemistry WebBook Reference">NIST Chemistry WebBook</a> (~30.000 spectra)</li>
+                                                                        <!-- <li><a class="link" href="http://www.nmrdb.org/" target="_blank" title="NMRdb.org">NMR Database</a></li> -->
+                                                                </ul>
+                                                        </li>
+                                                </ul>
+                                                <p id="about-links">
+                                                        MolView v2.4
+                                                        &nbsp;&bull;&nbsp;
+                                                        <a class="link" href="legal" target="_blank">Terms of Use</a>
+                                                        &nbsp;&bull;&nbsp;
+                                                        Copyright &copy; 2014-2023 <a class="link" target="_blank" rel="author" href="https://www.hbergwerf.nl">Herman Bergwerf</a>
+                                                        <br/>
+                                                        <a class="link" target="_blank" href="http://blog.molview.org">MolView Blog</a>
+                                                        &nbsp;&bull;&nbsp;
+                                                        <a class="link" target="_blank" href="https://www.youtube.com/@molview">YouTube Channel</a>
+                                                </p>
+                                                <div class="footer">
+                                                        <button class="btn close btn-primary">Continue</button>
+                                                </div>
+                                        </div>
+                                        <div class="dialog" id="help-dialog" style="display: none;">
+                                                <h2>Help</h2>
+                                                <div class="alert-bar alert-danger" style="margin-bottom: 20px;"><b>Important!</b> you can slide toolbars which don't fit in your screen.</div>
+                                                <p>Click one of the subjects below to learn more. You can also watch some videos on <a class="link" target="_blank" title="YouTube Channel" href="https://www.youtube.com/@molview">YouTube</a> to get started.</p>
+                                                <h3>Subjects</h3>
+                                                <div class="expandable">
+                                                        <div class="expandable-title"><span>Drawing structural formulas</span></div>
+                                                        <div class="expandable-content">
+                                                                <p>MolView consists of two main parts, a structural formula editor and a 3D model viewer. The structural formula editor is surround by three toolbars which contain the tools you can use in the editor. Once you’ve drawn a molecule, you can click the 2D to 3D button to convert the molecule into a 3D model which is then displayed in the viewer. Below is a list of all sketch tools.</p>
+                                                                <h4>Top toolbar</h4>
+                                                                <p style="margin-top: 10px;"><img style="display: inline-block; max-height: 40px;" src="img/help/SketcherTopToolbar.jpg" alt="Top toolbar" /></p>
+                                                                <ul>
+                                                                        <li><b>Trash:</b> clear the entire canvas</li>
+                                                                        <li><b>Eraser:</b> erase atoms, bonds or the current selection</li>
+                                                                        <li><b>Undo/redo:</b> undo or redo your recent changes</li>
+                                                                        <li>
+                                                                                <b>Selection tools:</b> all these tool can be used to drag the current selection or individual atoms and bonds. You can add/remove atoms and bonds to the selection by clicking them. If you have selected a separate fragment, you can rotate it by dragging an atom in the selection. You can delete the selection using the <b>DEL</b> key or using the eraser tool. Each tool has different behavior for the right mouse button:
+                                                                                <ul>
+                                                                                        <li><b>Drag:</b> move the entire molecule (you can already use the left mouse button for this)</li>
+                                                                                        <li><b>Rectangle select:</b> select atoms and bonds using a rectangular selection area</li>
+                                                                                        <li><b>Lasso select:</b> select atoms and bonds by drawing a freehand selection area</li>
+                                                                                </ul>
+                                                                        </li>
+                                                                        <li><b>Color mode:</b> display atoms and bonds using colors</li>
+                                                                        <li><b>Full mode:</b> displays all C and H atoms instead of skeletal display</li>
+                                                                        <li><b>Center:</b> centers the whole molecule</li>
+                                                                        <li><b>Clean:</b> cleans the structural formula using an external service</li>
+                                                                        <li><b>2D to 3D:</b> converts the structural formula into a 3D model</li>
+                                                                </ul>
+                                                                <h4>Left toolbar</h4>
+                                                                <p style="margin-top: 10px;"><img style="max-height: 40px; display: inline-block;" src="img/help/SketcherLeftToolbar.jpg" alt="Left toolbar" /></p>
+                                                                <ul>
+                                                                        <li><b>Bonds:</b> pick one of the bond types (single, double, triple, up, down) and add or modify bonds</li>
+                                                                        <li><b>Fragments:</b> pick one of the fragments (benzene, cyclopropane, etc.) and add fragments</li>
+                                                                        <li><b>Chain:</b> create a chain of carbon atoms</li>
+                                                                        <li><b>Charge:</b> increment (+) or decrement (-) the charge of atoms</li>
+                                                                </ul>
+                                                                <h4>Right toolbar</h4>
+                                                                <p style="margin-top: 10px;"><img style="max-height: 40px; display: inline-block;" src="img/help/SketcherRightToolbar.jpg" alt="Right toolbar" /></p>
+                                                                <p>In this toolbar you can select from a number of elements, you can also pick an element from the periodic table using the last button. You can use the element to create new atoms or modify existing atoms.</p>
+                                                        </div>
+                                                </div>
+                                                <div class="expandable">
+                                                        <div class="expandable-title"><span>Finding structures</span></div>
+                                                        <div class="expandable-content">
+                                                                <p><img style="max-height: 40px; display: inline-block;" src="img/help/SearchBar.jpg" alt="Search bar" /></p>
+                                                                <p>You can load molecules from large databases like PubChem and RCSB using the search form located on the left side of the menu-bar. Just type what you are looking for and a list of available molecules will appear.</p>
+                                                                <p>You can also click on the dropdown button next to the search field to select a specific database. This will perform a more extensive search on the selected database.</p>
+                                                        </div>
+                                                </div>
+                                                <div class="expandable">
+                                                        <div class="expandable-title"><span>Tools</span></div>
+                                                        <div class="expandable-content">
+                                                                <p>The <b>Tools</b> menu contains several utility functions which are listed below.</p>
+                                                                <h4>Link</h4>
+                                                                <p>You can embed a specific compound, macromolecule or crystal using the provided URL or HTML code. Note that the linked structure is the one which is currently displayed in the model window. You can also copy the URL from the address bar in order to link to the current structure.</p>
+                                                                <h4>Export</h4>
+                                                                <p>Export options:</p>
+                                                                <ul>
+                                                                        <li><b>Structural formula image:</b> sketcher snapshot (PNG with alpha channel)</li>
+                                                                        <li><b>3D model image:</b> model snapshot (PNG,  alpha channel in Glmol and ChemDoodle)</li>
+                                                                        <li><b>MOL file:</b> exports a MDL Molfile from the 3D model <b>(common molecules)</b></li>
+                                                                        <li><b>PDB file:</b> exports a Protein Data Bank file from the 3D model <b>(macromolecules)</b></li>
+                                                                        <li><b>CIF file:</b> exports a Crystallographic Information File from the 3D model <b>(crystal structures)</b></li>
+                                                                </ul>
+                                                                <h4>Information card</h4>
+                                                                <p>This collects and displays information about the structural formula.</p>
+                                                                <h4>Spectroscopy</h4>
+                                                                <p>This shows a new layer where you can view molecular spectra of the current structural formula (loaded from the Sketcher) More details are covered in the Spectroscopy chapter.</p>
+                                                                <h4>3D model resource</h4>
+                                                                <p>This redirects you to the web-page for the current 3D model on the website of its source database (except when the model is resolved using the Chemical Identifier Resolver)</p>
+                                                                <h4>Advanced search</h4>
+                                                                <p>These functions allow you to perform some advanced searches through the PubChem database using the structural formula from the sketcher.</p>
+                                                                <ol>
+                                                                        <li><b>Similarity search:</b> search for compounds with a similar structural formula</li>
+                                                                        <li><b>Substructure search:</b> search for compounds with the current structure as subset</li>
+                                                                        <li><b>Superstructure search:</b> search for compounds with the current structure as superset</li>
+                                                                </ol>
+                                                        </div>
+                                                </div>
+                                                <div class="expandable">
+                                                        <div class="expandable-title"><span>Spectroscopy</span></div>
+                                                        <div class="expandable-content">
+                                                                <p>You can open the Spectroscopy view via <b>Tools > Spectroscopy</b>. You can view three kinds of molecular spectra.</p>
+                                                                <ol>
+                                                                        <li>Mass spectrum</li>
+                                                                        <li>IR spectrum</li>
+                                                                        <li>H1-NMR prediction</li>
+                                                                </ol>
+                                                                <h4>Export data</h4>
+                                                                <p>You can also export different kinds of data from the currently selected spectrum.</p>
+                                                                <ul>
+                                                                        <li><b>PNG image:</b> snapshot from interactive spectrum</li>
+                                                                        <li><b>JCAMP file:</b> JCAMP-DX file of the current spectrum</li>
+                                                                </ul>
+                                                        </div>
+                                                </div>
+                                                <div class="expandable">
+                                                        <div class="expandable-title"><span>3D model</span></div>
+                                                        <div class="expandable-content">
+                                                                <p>The <b>Model</b> menu contains some general functions for the 3D model.</p>
+                                                                <h4>Reset</h4>
+                                                                <p>This function sets the model position, zoom and rotation back to default.</p>
+                                                                <h4>Representation</h4>
+                                                                <p>You can choose from a list of different molecule representations including; ball and stick, stick, van der Waals spheres, wireframe and lines. Macromolecules are automatically drawn using ribbons.</p>
+                                                                <h4>Background</h4>
+                                                                <p>You can switch between a black, gray or white background. The default background is black (exported images from GLmol or ChemDoodle have a transparent background)</p>
+                                                                <h4>Engines</h4>
+                                                                <p>You can choose from three different render engines: <b>GLmol</b>, <b>Jmol</b> and <b>ChemDoodle</b>. GLmol is used as default render engine. GLmol and ChemDoodle are based on WebGL, a browser technology to support 3D graphics. If WebGL is not available in your browser, Jmol will be used for all rendering.</p>
+                                                                <p>MolView automatically switches to:</p>
+                                                                <ol>
+                                                                        <li><b>Jmol</b> if you execute functions from the Jmol menu</li>
+                                                                        <li><b>GLmol</b> if you load macromolecules (due to significant higher performance)</li>
+                                                                        <li><b>ChemDoodle</b> if you load a crystal structure (GLmol cannot render crystal structures)</li>
+                                                                </ol>
+                                                                <p>You might want to switch back to GLmol when you do no longer need Jmol or ChemDoodle since GLmol has a better performance.</p>
+                                                                <p>Note that macromolecules are drawn slightly different in each engine. ChemDoodle provides the finest display. You should, however, avoid using ChemDoodle for very large macromolecules.</p>
+                                                                <h4>Model transformation</h4>
+                                                                <p>You can rotate, pan and zoom the 3D model. Use the right button for rotation, the middle button for translation (except for ChemDoodle) and the scrollwheel for zooming. On touch devices, you can rotate the model with one finger and scale the model using two fingers.</p>
+                                                                <h4>Crystallography</h4>
+                                                                <p>You can load an array of crystal cells (2x2x2 or 1x3x3) or a single unit cell when viewing crystal structures.</p>
+                                                                <h4>Fog and clipping</h4>
+                                                                <p>When you are viewing large structures, like proteins, it can be useful to hide a certain part using fog or a clipping plane. GLmol offers a few options to do this.</p>
+                                                                <ol>
+                                                                        <li><b>Fog:</b> you can move the fog forward by dragging the mouse <b>up</b> while holding <b>CTRL + SHIFT</b> (drag in the opposite direction to move the fog backward)</li>
+                                                                        <li><b>Clipping plane:</b> you can move a frontal clipping plane into the structure by dragging the mouse to the <b>left</b> while holding <b>CTRL + SHIFT</b> (drag in the opposite direction to move the clipping plane back)</li>
+                                                                </ol>
+                                                        </div>
+                                                </div>
+                                                <div class="expandable">
+                                                        <div class="expandable-title"><span>Protein display</span></div>
+                                                        <div class="expandable-content">
+                                                                <p>The <b>Protein</b> menu offers a number of protein display settings including different color schemes and different chain representations.</p>
+                                                                <h4>Show bio assembly</h4>
+                                                                <p>When loading a protein structure, MolView shows the asymmetric unit by default. This function allows you to view the full biological unit instead.</p>
+                                                                <h4>Chain representation</h4>
+                                                                <p>You can choose from four different chain representations. You can also view the full chain structure by enabling the <b>Bonds</b> option.</p>
+                                                                <ol>
+                                                                        <li><b>Ribbon:</b> draws ribbon diagram <i>(default representation)</i></li>
+                                                                        <li><b>Cylinder and plate:</b> solid cylinders for α-helices and solid plates for β-sheets</li>
+                                                                        <li><b>B-factor tube:</b> tube with B-factor as  thickness <i>(thermal motion)</i></li>
+                                                                        <li><b>C-alpha trace:</b> lines between central carbon atom in amino-acids <i>(very fast rendering)</i></li>
+                                                                </ol>
+                                                                <h4>Chain coloring</h4>
+                                                                <p>You can choose from six chain color schemes.</p>
+                                                                <ol>
+                                                                        <li><b>Secondary structures:</b> different colors for α-helices, β-sheets, etc.</li>
+                                                                        <li><b>Spectrum:</b> color spectrum <i>(rainbow)</i></li>
+                                                                        <li><b>Chain:</b> each chains gets a different color</li>
+                                                                        <li><b>Residue:</b> all amino-acid residues are colored differently</li>
+                                                                        <li><b>Polarity:</b> colors polar amino-acids red and non polar amino-acids white</li>
+                                                                        <li><b>B-factor:</b> blue for low B-factor and red for high B-factor <i>(if provided)</i></li>
+                                                                </ol>
+                                                        </div>
+                                                </div>
+                                                <div class="expandable">
+                                                        <div class="expandable-title"><span>Advanced Jmol tools</span></div>
+                                                        <div class="expandable-content">
+                                                                <p>The <b>Jmol</b> menu offers some awesome Jmol-only functions and calculations.</p>
+                                                                <h4>Clear</h4>
+                                                                <p>Clears all executed calculations and measurements.</p>
+                                                                <h4>High Quality</h4>
+                                                                <p>Enables High Quality rendering in Jmol (enabled by default on fast devices) When turned off, anti-aliasing is disabled and the model is drawn using lines while transforming it.</p>
+                                                                <h4>Calculations</h4>
+                                                                <p>You can perform the following Jmol calculations in Jmol:</p>
+                                                                <ul>
+                                                                        <li><b>MEP surface lucent/opaque:</b> calculates and projects molecular electrostatic potential on a translucent or opaque van der Waals surface</li>
+                                                                        <li><b>Charge:</b> calculates and projects atomic charge as text label and white to atom color gradient</li>
+                                                                        <li><b>Bond dipoles:</b> calculates and draws individual bond dipoles</li>
+                                                                        <li><b>Overall dipole:</b> calculates and draws net bond dipole</li>
+                                                                        <li><b>Energy minimization:</b> executes an interactive MMFF94 energy minimization <i>(note that this function only executes a maximum of 100 minimization steps at a time)</i></li>
+                                                                </ul>
+                                                                <h4>Measurement</h4>
+                                                                <p>You can measure distance, angle and torsion using Jmol. You can activate and deactivate one of these measurement types via the Jmol menu.</p>
+                                                                <ul>
+                                                                        <li><b>Distance</b> distance between two atoms in nm</li>
+                                                                        <li><b>Angle</b> angle between two bonds in degrees</li>
+                                                                        <li><b>Torsion</b> torsion between four atoms in degrees</li>
+                                                                </ul>
+                                                                <p>Note that in some cases, the resolved 3D model is only an approach of the real molecule, this means you have to execute an <b>Energy minimization</b> in order to do reliable measurements.</p>
+                                                        </div>
+                                                </div>
+                                                <div class="footer">
+                                                        <button class="btn close btn-primary">Close</button>
+                                                </div>
+                                        </div>
+                                        <div class="dialog" id="embed-dialog" style="display: none;">
+                                                <h2>Embed</h2>
+                                                <div class="alert-box">
+                                                        <span id="embed-2d-not-3d" class="alert-bar">Note: the strutural formula is not the same structure as the 3D model</span>
+                                                </div>
+                                                <h4>Width</h3>
+                                                <input id="embed-width" class="input" type="text" value="500px" autocomplete="off" spellcheck="false" /><br/>
+                                                <h4>Height</h4>
+                                                <input id="embed-height" class="input" type="text" value="300px" autocomplete="off" spellcheck="false" />
+                                                <h4>HTML code</h4>
+                                                <p style="margin: 10px 0;">
+                                                        You can use the HTML code below to embed the current 3D model in your website.
+                                                </p>
+                                                <input id="embed-code" class="input" type="text" autocomplete="off" spellcheck="false" />
+                                                <h4>Embed URL</h4>
+                                                <input id="embed-url" class="input" type="text" autocomplete="off" spellcheck="false" />
+                                                <div class="footer">
+                                                        <button class="btn close btn-primary">Close</button>
+                                                </div>
+                                        </div>
+                                        <div class="dialog" id="periodictable-dialog" style="display: none;">
+                                                <h2>Periodic Table</h2>
+                                                <div id="periodictable"></div>
+                                                <div class="footer">
+                                                        <button class="btn close btn-primary">Close</button>
+                                                </div>
+                                        </div>
+                                </div>
+                        </div>
+                </div>
+                <!-- Hidden file inputs for Library functionality -->
+                <input type="file" id="upload-3d-structure" accept=".pdb,.mol,.sdf,.xyz,.cif,.mol2,.cml,.mmcif,.pqr,.gro,.xtc,.trr,.dcd,.crd,.psf,.top,.itp,.mdp,.prmtop,.inpcrd,.rst,.nc,.netcdf,.h5,.hdf5,.dx,.cube,.wrl,.vrml,.obj,.ply,.stl,.off,.x3d,.json,.bson,.yaml,.xml,.chem,.cdx,.cdxml,.hin,.mop,.zmat,.g03,.g09,.g16,.inp,.out,.log,.fch,.chk,.wfn,.molden,.adf,.gamess,.nwchem,.orca,.qchem,.turbomole,.vasp,.cp2k,.dftb,.lammps,.amber,.gromacs,.namd,.charmm,.openmm,.hoomd" style="display: none;" multiple>
+                <input type="file" id="upload-animation" accept=".mp4,.webm,.avi,.mov,.mkv,.flv,.wmv,.3gp,.3g2,.asf,.m4v,.mpg,.mpeg,.m2v,.m4p,.ts,.mts,.m2ts,.vob,.ogv,.ogg,.rm,.rmvb,.divx,.xvid,.f4v,.swf,.gif,.apng" style="display: none;" multiple>
+                
+                <!-- Library viewer modal -->
+                <div id="library-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000;">
+                        <div style="background: white; margin: 50px auto; width: 80%; max-width: 900px; height: 80%; border-radius: 8px; overflow: hidden;">
+                                <div style="padding: 20px; border-bottom: 1px solid #ccc; display: flex; justify-content: space-between; align-items: center;">
+                                        <h2 id="library-modal-title">My Library</h2>
+                                        <button id="close-library-modal" style="background: #f44336; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer;">&times;</button>
+                                </div>
+                                <div id="library-content" style="padding: 20px; height: calc(100% - 100px); overflow-y: auto;">
+                                        <!-- Library content will be loaded here -->
+                                </div>
+                        </div>
+                </div>
+                
+                <!-- 3D Structure Viewer Modal -->
+                <div id="structure-viewer-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 10001;">
+                        <div style="background: white; margin: 20px auto; width: 95%; max-width: 1200px; height: 90%; border-radius: 8px; overflow: hidden; display: flex; flex-direction: column;">
+                                <!-- Header -->
+                                <div style="padding: 15px 20px; border-bottom: 1px solid #ccc; display: flex; justify-content: space-between; align-items: center; background: #f5f5f5;">
+                                        <h2 id="structure-viewer-title" style="margin: 0; color: #333;">🧬 3D Structure Viewer</h2>
+                                        <div style="display: flex; gap: 10px; align-items: center;">
+                                                <span id="structure-info" style="font-size: 14px; color: #666;"></span>
+                                                <button id="close-structure-viewer" style="background: #f44336; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 18px;" onclick="document.getElementById('structure-viewer-modal').style.display='none'">&times;</button>
+                                        </div>
+                                </div>
+                                
+                                <!-- Main Content -->
+                                <div style="flex: 1; display: flex;">
+                                        <!-- 3D Viewer Area -->
+                                        <div style="flex: 1; background: #000; position: relative; min-height: 400px;">
+                                                <div id="structure-3d-viewer" style="width: 100%; height: 100%; background: linear-gradient(45deg, #1a1a1a, #333); display: flex; align-items: center; justify-content: center; color: white; font-size: 18px;">
+                                                        <div style="text-align: center;">
+                                                                <div style="font-size: 48px; margin-bottom: 20px;">🧬</div>
+                                                                <div>3D Molecular Structure</div>
+                                                                <div style="font-size: 14px; margin-top: 10px; opacity: 0.7;">Advanced molecular visualization and analysis</div>
+                                                        </div>
+                                                </div>
+                                        </div>
+                                        
+                                        <!-- Controls Panel -->
+                                        <div style="width: 300px; background: #f9f9f9; border-left: 1px solid #ddd; padding: 20px; overflow-y: auto;">
+                                                <h3 style="margin: 0 0 15px 0; color: #333;">⚙️ Viewing Options</h3>
+                                                
+                                                <!-- File Info -->
+                                                <div style="margin-bottom: 20px; padding: 10px; background: #e8f5e8; border-radius: 4px;">
+                                                        <div style="font-size: 12px; color: #666;">📊 Structure Info:</div>
+                                                        <div id="structure-details" style="font-size: 11px; margin-top: 5px;"></div>
+                                                </div>
+                                                
+                                                <!-- Actions -->
+                                                <div style="display: flex; flex-direction: column; gap: 10px;">
+                                                        <button onclick="Library.loadInMainViewer()" style="background: #4CAF50; color: white; border: none; padding: 10px; border-radius: 4px; cursor: pointer;">🔬 Load in Main Viewer</button>
+                                                        <button onclick="Library.downloadCurrentStructure()" style="background: #2196F3; color: white; border: none; padding: 10px; border-radius: 4px; cursor: pointer;">📥 Download File</button>
+                                                </div>
+                                        </div>
+                                </div>
+                        </div>
+                </div>
+                
+                <!-- Animation Video Viewer Modal -->
+                <div id="animation-viewer-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 10001;">
+                        <div style="background: white; margin: 20px auto; width: 95%; max-width: 1200px; height: 90%; border-radius: 8px; overflow: hidden; display: flex; flex-direction: column;">
+                                <!-- Header -->
+                                <div style="padding: 15px 20px; border-bottom: 1px solid #ccc; display: flex; justify-content: space-between; align-items: center; background: #f5f5f5;">
+                                        <h2 id="animation-viewer-title" style="margin: 0; color: #333;">🎬 Animation Player</h2>
+                                        <div style="display: flex; gap: 10px; align-items: center;">
+                                                <span id="animation-info" style="font-size: 14px; color: #666;"></span>
+                                                <button id="close-animation-viewer" style="background: #f44336; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 18px;" onclick="document.getElementById('animation-viewer-modal').style.display='none'">&times;</button>
+                                        </div>
+                                </div>
+                                
+                                <!-- Main Content -->
+                                <div style="flex: 1; display: flex;">
+                                        <!-- Video Player Area -->
+                                        <div style="flex: 1; background: #000; position: relative; display: flex; align-items: center; justify-content: center;">
+                                                <video id="animation-player" controls style="max-width: 100%; max-height: 100%; border-radius: 4px;">
+                                                        <p style="color: white;">Your browser doesn't support HTML5 video.</p>
+                                                </video>
+                                        </div>
+                                        
+                                        <!-- Video Controls Panel -->
+                                        <div style="width: 280px; background: #f9f9f9; border-left: 1px solid #ddd; padding: 20px; overflow-y: auto;">
+                                                <h3 style="margin: 0 0 15px 0; color: #333;">🎛️ Video Controls</h3>
+                                                
+                                                <!-- Playback Speed -->
+                                                <div style="margin-bottom: 15px;">
+                                                        <label style="font-weight: bold; display: block; margin-bottom: 5px;">Speed:</label>
+                                                        <select id="video-speed" onchange="Library.setSpeed(this.value)" style="width: 100%; padding: 5px;">
+                                                                <option value="0.5">0.5x</option>
+                                                                <option value="1" selected>1x</option>
+                                                                <option value="1.5">1.5x</option>
+                                                                <option value="2">2x</option>
+                                                        </select>
+                                                </div>
+                                                
+                                                <!-- Volume -->
+                                                <div style="margin-bottom: 15px;">
+                                                        <label style="font-weight: bold; display: block; margin-bottom: 5px;">Volume:</label>
+                                                        <input type="range" id="volume-slider" min="0" max="1" step="0.1" value="1" onchange="Library.setVolume(this.value)" style="width: 100%;">
+                                                </div>
+                                                
+                                                <!-- Controls -->
+                                                <div style="display: flex; flex-direction: column; gap: 8px;">
+                                                        <button onclick="Library.playPause()" style="background: #4CAF50; color: white; border: none; padding: 8px; border-radius: 3px; cursor: pointer;">⏯️ Play/Pause</button>
+                                                        <button onclick="Library.toggleLoop()" style="background: #2196F3; color: white; border: none; padding: 8px; border-radius: 3px; cursor: pointer;">🔄 Toggle Loop</button>
+                                                        <button onclick="Library.captureFrame()" style="background: #FF9800; color: white; border: none; padding: 8px; border-radius: 3px; cursor: pointer;">📷 Capture Frame</button>
+                                                        <button onclick="Library.downloadCurrentVideo()" style="background: #9C27B0; color: white; border: none; padding: 8px; border-radius: 3px; cursor: pointer;">⬇️ Download Video</button>
+                                                </div>
+                                                
+                                                <!-- Video Info -->
+                                                <div style="margin-top: 20px; padding: 10px; background: #e8f4f8; border-radius: 4px;">
+                                                        <div style="font-size: 12px; color: #666;">📊 Video Info:</div>
+                                                        <div id="video-details" style="font-size: 11px; margin-top: 5px;"></div>
+                                                </div>
+                                        </div>
+                                </div>
+                        </div>
+                </div>
+
+                <script>
+                // Library functionality
+                const Library = {
+                        structures: [],
+                        animations: [],
+                        
+                        init: function() {
+                                console.log('Initializing Library...');
+                                this.loadFromServer();
+                                this.setupEventHandlers();
+                        },
+                        
+                        setupEventHandlers: function() {
+                                // Upload 3D Structure handler
+                                const uploadStructureBtn = document.getElementById('action-upload-3d-structure');
+                                if (uploadStructureBtn) {
+                                        uploadStructureBtn.onclick = (e) => {
+                                                e.preventDefault();
+                                                console.log('Upload 3D Structure clicked');
+                                                document.getElementById('upload-3d-structure').click();
+                                        };
+                                }
+                                
+                                // Upload Animation handler
+                                const uploadAnimationBtn = document.getElementById('action-upload-animation');
+                                if (uploadAnimationBtn) {
+                                        uploadAnimationBtn.onclick = (e) => {
+                                                e.preventDefault();
+                                                console.log('Upload Animation clicked');
+                                                document.getElementById('upload-animation').click();
+                                        };
+                                }
+                                
+                                // View saved structures
+                                const viewStructuresBtn = document.getElementById('action-view-saved-structures');
+                                if (viewStructuresBtn) {
+                                        viewStructuresBtn.onclick = (e) => {
+                                                e.preventDefault();
+                                                console.log('View Saved Structures clicked');
+                                                this.showLibrary('structures');
+                                        };
+                                }
+                                
+                                // View saved animations
+                                const viewAnimationsBtn = document.getElementById('action-view-saved-animations');
+                                if (viewAnimationsBtn) {
+                                        viewAnimationsBtn.onclick = (e) => {
+                                                e.preventDefault();
+                                                console.log('View Saved Animations clicked');
+                                                this.showLibrary('animations');
+                                        };
+                                }
+                                
+                                // Clear library
+                                const clearLibraryBtn = document.getElementById('action-clear-library');
+                                if (clearLibraryBtn) {
+                                        clearLibraryBtn.onclick = (e) => {
+                                                e.preventDefault();
+                                                if(confirm('Are you sure you want to clear all saved content?')) {
+                                                        this.clearAllFiles();
+                                                }
+                                        };
+                                }
+                                
+                                // Close modal
+                                const closeModalBtn = document.getElementById('close-library-modal');
+                                if (closeModalBtn) {
+                                        closeModalBtn.onclick = () => {
+                                                document.getElementById('library-modal').style.display = 'none';
+                                        };
+                                }
+                                
+                                // File upload event listeners
+                                const upload3dInput = document.getElementById('upload-3d-structure');
+                                if (upload3dInput) {
+                                        upload3dInput.onchange = (e) => {
+                                                this.handleFileUpload(e.target.files, 'structure');
+                                        };
+                                }
+                                
+                                const uploadAnimInput = document.getElementById('upload-animation');
+                                if (uploadAnimInput) {
+                                        uploadAnimInput.onchange = (e) => {
+                                                this.handleFileUpload(e.target.files, 'animation');
+                                        };
+                                }
+                        },
+                        
+                        loadFromServer: function() {
+                                console.log('Loading library from local storage...');
+                                
+                                // Use IndexedDB for local storage instead of server
+                                this.loadFromIndexedDB().then(data => {
+                                        console.log('Loaded from local storage:', data);
+                                        this.structures = data.structures || [];
+                                        this.animations = data.animations || [];
+                                        this.updateUI();
+                                }).catch(error => {
+                                        console.error('IndexedDB Error:', error);
+                                        this.structures = [];
+                                        this.animations = [];
+                                        this.updateUI();
+                                });
+                        },
+                        
+                        updateUI: function() {
+                                // Update structures list
+                                const structuresList = document.getElementById('structures-list');
+                                if (structuresList) {
+                                        structuresList.innerHTML = '';
+                                        if (this.structures.length === 0) {
+                                                structuresList.innerHTML = '<p>No saved structures found. Upload some files to get started.</p>';
+                                        } else {
+                                                this.structures.forEach(structure => {
+                                                        const item = document.createElement('div');
+                                                        item.className = 'saved-file-item';
+                                                        item.innerHTML = `
+                                                                <span>${structure.name}</span>
+                                                                <small>${structure.size} bytes - ${new Date(structure.timestamp).toLocaleDateString()}</small>
+                                                                <button onclick="libraryManager.deleteFile('${structure.id}', 'structure')">Delete</button>
+                                                                <button onclick="libraryManager.loadFile('${structure.id}', 'structure')">Load</button>
+                                                        `;
+                                                        structuresList.appendChild(item);
+                                                });
+                                        }
+                                }
+                                
+                                // Update animations list
+                                const animationsList = document.getElementById('animations-list');
+                                if (animationsList) {
+                                        animationsList.innerHTML = '';
+                                        if (this.animations.length === 0) {
+                                                animationsList.innerHTML = '<p>No saved animations found. Upload some files to get started.</p>';
+                                        } else {
+                                                this.animations.forEach(animation => {
+                                                        const item = document.createElement('div');
+                                                        item.className = 'saved-file-item';
+                                                        item.innerHTML = `
+                                                                <span>${animation.name}</span>
+                                                                <small>${animation.size} bytes - ${new Date(animation.timestamp).toLocaleDateString()}</small>
+                                                                <button onclick="libraryManager.deleteFile('${animation.id}', 'animation')">Delete</button>
+                                                                <button onclick="libraryManager.loadFile('${animation.id}', 'animation')">Load</button>
+                                                        `;
+                                                        animationsList.appendChild(item);
+                                                });
+                                        }
+                                }
+                        },
+                        
+                        deleteFile: function(id, type) {
+                                if (confirm('Are you sure you want to delete this file?')) {
+                                        this.deleteFromIndexedDB(id, type).then(() => {
+                                                alert('File deleted successfully');
+                                                this.loadFromServer();
+                                        }).catch(error => {
+                                                console.error('Delete error:', error);
+                                                alert('Delete failed: ' + error.message);
+                                        });
+                                }
+                        },
+                        
+                        // IndexedDB storage functions for standalone operation
+                        initIndexedDB: function() {
+                                return new Promise((resolve, reject) => {
+                                        const request = indexedDB.open('MolViewLibrary', 1);
+                                        
+                                        request.onerror = () => reject(request.error);
+                                        request.onsuccess = () => resolve(request.result);
+                                        
+                                        request.onupgradeneeded = (event) => {
+                                                const db = event.target.result;
+                                                
+                                                // Create object stores
+                                                if (!db.objectStoreNames.contains('structures')) {
+                                                        const structureStore = db.createObjectStore('structures', { keyPath: 'id' });
+                                                        structureStore.createIndex('name', 'name', { unique: false });
+                                                        structureStore.createIndex('timestamp', 'timestamp', { unique: false });
+                                                }
+                                                
+                                                if (!db.objectStoreNames.contains('animations')) {
+                                                        const animationStore = db.createObjectStore('animations', { keyPath: 'id' });
+                                                        animationStore.createIndex('name', 'name', { unique: false });
+                                                        animationStore.createIndex('timestamp', 'timestamp', { unique: false });
+                                                }
+                                        };
+                                });
+                        },
+                        
+                        loadFromIndexedDB: function() {
+                                return this.initIndexedDB().then(db => {
+                                        return new Promise((resolve, reject) => {
+                                                const transaction = db.transaction(['structures', 'animations'], 'readonly');
+                                                const structureStore = transaction.objectStore('structures');
+                                                const animationStore = transaction.objectStore('animations');
+                                                
+                                                const structureRequest = structureStore.getAll();
+                                                const animationRequest = animationStore.getAll();
+                                                
+                                                let results = { structures: [], animations: [] };
+                                                let completed = 0;
+                                                
+                                                structureRequest.onsuccess = () => {
+                                                        results.structures = structureRequest.result;
+                                                        completed++;
+                                                        if (completed === 2) resolve(results);
+                                                };
+                                                
+                                                animationRequest.onsuccess = () => {
+                                                        results.animations = animationRequest.result;
+                                                        completed++;
+                                                        if (completed === 2) resolve(results);
+                                                };
+                                                
+                                                transaction.onerror = () => reject(transaction.error);
+                                        });
+                                });
+                        },
+                        
+                        saveToIndexedDB: function(file, content, type) {
+                                return this.initIndexedDB().then(db => {
+                                        return new Promise((resolve, reject) => {
+                                                const transaction = db.transaction([type + 's'], 'readwrite');
+                                                const store = transaction.objectStore(type + 's');
+                                                
+                                                const fileRecord = {
+                                                        id: Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                                                        name: file.name,
+                                                        size: file.size,
+                                                        type: file.type,
+                                                        extension: file.name.split('.').pop().toLowerCase(),
+                                                        content: content,
+                                                        timestamp: new Date().toISOString(),
+                                                        formatted_size: this.formatFileSize(file.size)
+                                                };
+                                                
+                                                const request = store.add(fileRecord);
+                                                request.onsuccess = () => resolve(fileRecord);
+                                                request.onerror = () => reject(request.error);
+                                        });
+                                });
+                        },
+                        
+                        deleteFromIndexedDB: function(id, type) {
+                                return this.initIndexedDB().then(db => {
+                                        return new Promise((resolve, reject) => {
+                                                const transaction = db.transaction([type + 's'], 'readwrite');
+                                                const store = transaction.objectStore(type + 's');
+                                                
+                                                const request = store.delete(id);
+                                                request.onsuccess = () => resolve();
+                                                request.onerror = () => reject(request.error);
+                                        });
+                                });
+                        },
+                        
+                        clearIndexedDB: function() {
+                                return this.initIndexedDB().then(db => {
+                                        return new Promise((resolve, reject) => {
+                                                const transaction = db.transaction(['structures', 'animations'], 'readwrite');
+                                                const structureStore = transaction.objectStore('structures');
+                                                const animationStore = transaction.objectStore('animations');
+                                                
+                                                const clearStructures = structureStore.clear();
+                                                const clearAnimations = animationStore.clear();
+                                                
+                                                let completed = 0;
+                                                const checkComplete = () => {
+                                                        completed++;
+                                                        if (completed === 2) resolve();
+                                                };
+                                                
+                                                clearStructures.onsuccess = checkComplete;
+                                                clearAnimations.onsuccess = checkComplete;
+                                                transaction.onerror = () => reject(transaction.error);
+                                        });
+                                });
+                        },
+                        
+                        loadFileFromIndexedDB: function(id, type) {
+                                return this.initIndexedDB().then(db => {
+                                        return new Promise((resolve, reject) => {
+                                                const transaction = db.transaction([type + 's'], 'readonly');
+                                                const store = transaction.objectStore(type + 's');
+                                                const request = store.get(id);
+                                                
+                                                request.onsuccess = () => {
+                                                        const result = request.result;
+                                                        if (result && result.content) {
+                                                                resolve(result.content);
+                                                        } else {
+                                                                reject(new Error('File not found in local storage'));
+                                                        }
+                                                };
+                                                request.onerror = () => reject(request.error);
+                                        });
+                                });
+                        },
+                        
+                        loadFile: function(id, type) {
+                                // Find the file in our data
+                                const files = type === 'animation' ? this.animations : this.structures;
+                                const file = files.find(f => f.id === id);
+                                if (file) {
+                                        // You can implement file loading logic here
+                                        alert('Loading file: ' + file.name + '\n(File loading functionality can be implemented based on your needs)');
+                                }
+                        },
+                        
+                        handleFileUpload: function(files, type) {
+                                console.log('Saving files locally:', files, 'Type:', type);
+                                
+                                Array.from(files).forEach((file, index) => {
+                                        // Create progress indicator
+                                        const progressId = `upload-progress-${Date.now()}-${index}`;
+                                        const progressHtml = `
+                                                <div id="${progressId}" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 10001; min-width: 300px;">
+                                                        <h3>Saving: ${file.name}</h3>
+                                                        <div style="background: #f0f0f0; border-radius: 4px; overflow: hidden; margin: 10px 0;">
+                                                                <div id="${progressId}-bar" style="height: 20px; background: #4CAF50; width: 0%; transition: width 0.3s;"></div>
+                                                        </div>
+                                                        <div id="${progressId}-status">Preparing upload...</div>
+                                                        <button onclick="this.parentElement.remove()" style="background: #f44336; color: white; border: none; padding: 5px 10px; border-radius: 3px; margin-top: 10px; cursor: pointer;">Cancel</button>
+                                                </div>
+                                        `;
+                                        document.body.insertAdjacentHTML('beforeend', progressHtml);
+                                        
+                                        const progressDiv = document.getElementById(progressId);
+                                        const progressBar = document.getElementById(`${progressId}-bar`);
+                                        const progressStatus = document.getElementById(`${progressId}-status`);
+                                        
+                                        progressStatus.textContent = 'Reading file...';
+                                        
+                                        // Use FileReader to read file content for local storage
+                                        const reader = new FileReader();
+                                        
+                                        reader.onprogress = (e) => {
+                                                if (e.lengthComputable) {
+                                                        const percentComplete = (e.loaded / e.total) * 50; // First 50% for reading
+                                                        progressBar.style.width = percentComplete + '%';
+                                                        progressStatus.textContent = `Reading file... ${Math.round(percentComplete)}%`;
+                                                }
+                                        };
+                                        
+                                        reader.onload = () => {
+                                                progressBar.style.width = '75%';
+                                                progressStatus.textContent = 'Saving to local storage...';
+                                                
+                                                // Save to IndexedDB
+                                                this.saveToIndexedDB(file, reader.result, type).then((savedFile) => {
+                                                        progressBar.style.width = '100%';
+                                                        progressBar.style.background = '#4CAF50';
+                                                        progressStatus.innerHTML = `
+                                                                <div style="color: green; font-weight: bold;">✓ Saved Successfully!</div>
+                                                                <button onclick="document.getElementById('${progressId}').remove(); Library.loadFromServer(); Library.showLibrary('${type}s');" style="background: #4CAF50; color: white; border: none; padding: 8px 16px; border-radius: 4px; margin-top: 10px; cursor: pointer;">View in Library</button>
+                                                        `;
+                                                        this.loadFromServer();
+                                                }).catch(error => {
+                                                        console.error('Save error:', error);
+                                                        progressBar.style.background = '#f44336';
+                                                        progressStatus.innerHTML = `
+                                                                <div style="color: red; font-weight: bold;">❌ Save Failed</div>
+                                                                <div style="margin: 10px 0; background: #ffebee; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 12px;">
+                                                                        Error: ${error.message}
+                                                                </div>
+                                                                <button onclick="document.getElementById('${progressId}').remove();" style="background: #f44336; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">Close</button>
+                                                        `;
+                                                });
+                                        };
+                                        
+                                        reader.onerror = (error) => {
+                                                console.error('File read error:', error);
+                                                progressBar.style.background = '#f44336';
+                                                progressStatus.innerHTML = `
+                                                        <div style="color: red; font-weight: bold;">❌ File Read Error</div>
+                                                        <div style="margin: 10px 0; background: #ffebee; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 12px;">
+                                                                Could not read the selected file
+                                                        </div>
+                                                        <button onclick="document.getElementById('${progressId}').remove();" style="background: #f44336; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">Close</button>
+                                                `;
+                                        };
+                                        
+                                        // Read as text for structure files, or as data URL for animation files
+                                        if (type === 'structure') {
+                                                reader.readAsText(file);
+                                        } else {
+                                                reader.readAsDataURL(file);
+                                        }
+                                });
+                        },
+                        
+                        showLibrary: function(type) {
+                                console.log('Showing library:', type);
+                                const modal = document.getElementById('library-modal');
+                                const title = document.getElementById('library-modal-title');
+                                const content = document.getElementById('library-content');
+                                
+                                if (!modal || !title || !content) {
+                                        console.error('Library modal elements not found');
+                                        return;
+                                }
+                                
+                                title.textContent = type === 'structures' ? 'Saved 3D Structures' : 'Saved Animations';
+                                
+                                const items = type === 'structures' ? this.structures : this.animations;
+                                
+                                let html = '';
+                                
+                                if (items.length === 0) {
+                                        html = '<p style="text-align: center; color: #666; margin-top: 50px;">No saved ' + type + ' found. Upload some files to get started!</p>';
+                                } else {
+                                        html = items.map((item, index) => {
+                                                const displayName = item.name || `${type.slice(0, -1)} ${index + 1}`;
+                                                const fileSize = item.size ? this.formatFileSize(item.size) : 'Unknown size';
+                                                const uploadDate = item.timestamp ? new Date(item.timestamp).toLocaleDateString() : 'Unknown date';
+                                                const fileExtension = item.extension || item.file_type || 'unknown';
+                                                
+                                                return `
+                                                <div style="border: 1px solid #ddd; border-radius: 4px; padding: 15px; margin-bottom: 10px; background: #f9f9f9;">
+                                                        <h4 style="margin: 0 0 10px 0; color: #333;">
+                                                                📁 ${displayName}
+                                                                <span style="font-size: 12px; background: #e0e0e0; padding: 2px 6px; border-radius: 3px; margin-left: 10px;">.${fileExtension}</span>
+                                                        </h4>
+                                                        <p style="margin: 5px 0; color: #666; font-size: 14px;">
+                                                                💾 Size: ${fileSize} | 
+                                                                📅 Added: ${uploadDate} |
+                                                                🏷️ Type: ${item.type ? item.type.toUpperCase() : 'Unknown'}
+                                                        </p>
+                                                        <div style="margin-top: 10px;">
+                                                                ${type === 'structures' ? `<button onclick="Library.loadStructure(${index})" style="background: #4CAF50; color: white; border: none; padding: 6px 12px; border-radius: 3px; margin-right: 5px; cursor: pointer;">🔬 View 3D</button>` : `<button onclick="Library.openAnimationViewer(Library.animations[${index}])" style="background: #4CAF50; color: white; border: none; padding: 6px 12px; border-radius: 3px; margin-right: 5px; cursor: pointer;">🎬 Play Video</button>`}
+                                                                <button onclick="Library.downloadFile('${item.id || index}', '${type.slice(0, -1)}')" style="background: #2196F3; color: white; border: none; padding: 6px 12px; border-radius: 3px; margin-right: 5px; cursor: pointer;">📥 Download</button>
+                                                                <button onclick="Library.deleteFile('${item.id || index}', '${type.slice(0, -1)}')" style="background: #f44336; color: white; border: none; padding: 6px 12px; border-radius: 3px; cursor: pointer;">🗑️ Delete</button>
+                                                        </div>
+                                                </div>`;
+                                        }).join('');
+                                }
+                                
+                                content.innerHTML = html;
+                                modal.style.display = 'block';
+                        },
+                        
+                        loadStructure: function(index) {
+                                const structure = this.structures[index];
+                                if (!structure) {
+                                        alert('Structure not found');
+                                        return;
+                                }
+                                
+                                try {
+                                        this.openStructureViewer(structure);
+                                } catch(e) {
+                                        console.error('Error loading structure:', e);
+                                        alert(`Error loading structure: ${e.message}`);
+                                }
+                        },
+                        
+                        openStructureViewer: function(structure) {
+                                // Hide library modal and show structure viewer
+                                document.getElementById('library-modal').style.display = 'none';
+                                const modal = document.getElementById('structure-viewer-modal');
+                                modal.style.display = 'block';
+                                
+                                // Set title and info
+                                document.getElementById('structure-viewer-title').textContent = `🧬 ${structure.name || 'Structure'}`;
+                                document.getElementById('structure-info').textContent = `${structure.formatted_size || this.formatFileSize(structure.size)} • ${structure.extension || structure.file_type || 'Unknown'}`;
+                                
+                                // Update structure details
+                                const details = `
+                                        <strong>File:</strong> ${structure.name}<br>
+                                        <strong>Type:</strong> ${structure.extension || structure.file_type || 'Unknown'}<br>
+                                        <strong>Size:</strong> ${structure.formatted_size || this.formatFileSize(structure.size)}<br>
+                                        <strong>Uploaded:</strong> ${new Date(structure.timestamp || structure.upload_date).toLocaleDateString()}
+                                `;
+                                document.getElementById('structure-details').innerHTML = details;
+                                
+                                // Store current structure for actions
+                                this.currentStructure = structure;
+                                
+                                // Load and display the 3D structure in the modal viewer
+                                this.loadStructureInViewer(structure);
+                        },
+                        
+                        loadStructureInViewer: function(structure) {
+                                const viewer3D = document.getElementById('structure-3d-viewer');
+                                
+                                // Show loading state
+                                viewer3D.innerHTML = `
+                                        <div style="text-align: center; color: white;">
+                                                <div style="font-size: 48px; margin-bottom: 20px;">⏳</div>
+                                                <div>Loading ${structure.name}...</div>
+                                                <div style="font-size: 14px; margin-top: 10px; opacity: 0.7;">Please wait while we render the molecular structure</div>
+                                        </div>
+                                `;
+                                
+                                // Create a mini 3D viewer using available rendering engines
+                                this.loadFileFromIndexedDB(structure.id, 'structure')
+                                        .then(data => {
+                                                // Create a simplified molecular viewer
+                                                const viewerId = `mini-viewer-${structure.id}`;
+                                                viewer3D.innerHTML = `
+                                                        <div id="${viewerId}" style="width: 100%; height: 100%; background: linear-gradient(45deg, #0a0a0a, #1a1a1a);">
+                                                                <canvas id="${viewerId}-canvas" style="width: 100%; height: 100%;"></canvas>
+                                                                <div style="position: absolute; top: 10px; left: 10px; color: white; font-size: 12px; background: rgba(0,0,0,0.7); padding: 5px 10px; border-radius: 3px;">
+                                                                        ${structure.name} | ${structure.extension?.toUpperCase()} | ${structure.formatted_size}
+                                                                </div>
+                                                                <div style="position: absolute; bottom: 10px; right: 10px; color: white; font-size: 11px; opacity: 0.7;">
+                                                                        🔄 Drag to rotate • 🔍 Scroll to zoom
+                                                                </div>
+                                                        </div>
+                                                `;
+                                                
+                                                // Try to render using available engines (simplified implementation)
+                                                try {
+                                                        if (typeof GLmol !== 'undefined' && structure.extension !== 'cif') {
+                                                                this.renderWithGLmol(viewerId, data, structure);
+                                                        } else {
+                                                                // Fallback: show structure info and preview
+                                                                this.showStructurePreview(viewerId, data, structure);
+                                                        }
+                                                } catch (error) {
+                                                        console.error('3D rendering error:', error);
+                                                        this.showStructurePreview(viewerId, data, structure);
+                                                }
+                                        })
+                                        .catch(error => {
+                                                console.error('Error loading structure file:', error);
+                                                viewer3D.innerHTML = `
+                                                        <div style="text-align: center; color: white;">
+                                                                <div style="font-size: 48px; margin-bottom: 20px;">❌</div>
+                                                                <div>Error loading ${structure.name}</div>
+                                                                <div style="font-size: 14px; margin-top: 10px; opacity: 0.7;">${error.message}</div>
+                                                        </div>
+                                                `;
+                                        });
+                        },
+                        
+                        renderWithGLmol: function(viewerId, data, structure) {
+                                // Simplified GLmol integration for modal viewer
+                                const canvas = document.getElementById(`${viewerId}-canvas`);
+                                const container = document.getElementById(viewerId);
+                                
+                                try {
+                                        // Create a basic molecular representation
+                                        container.innerHTML = `
+                                                <div style="width: 100%; height: 100%; background: radial-gradient(circle, #2a2a3a, #000); display: flex; align-items: center; justify-content: center; flex-direction: column; color: white;">
+                                                        <div style="font-size: 64px; margin-bottom: 20px;">🧬</div>
+                                                        <div style="font-size: 18px; margin-bottom: 10px;">${structure.name}</div>
+                                                        <div style="font-size: 14px; margin-bottom: 20px; opacity: 0.8;">Molecular Structure Loaded</div>
+                                                        <div style="background: rgba(255,255,255,0.1); padding: 10px 20px; border-radius: 5px; text-align: center; max-width: 80%;">
+                                                                <div style="font-size: 12px; margin-bottom: 5px;">📊 Structure Information:</div>
+                                                                <div style="font-size: 11px;">Format: ${structure.extension?.toUpperCase()}</div>
+                                                                <div style="font-size: 11px;">Size: ${structure.formatted_size}</div>
+                                                                <div style="font-size: 11px;">Data Length: ${data.length} chars</div>
+                                                        </div>
+                                                        <div style="margin-top: 20px; font-size: 12px; opacity: 0.6; text-align: center;">
+                                                                Click "Load in Main Viewer" below to view in full MolView interface
+                                                        </div>
+                                                </div>
+                                        `;
+                                } catch (error) {
+                                        this.showStructurePreview(viewerId, data, structure);
+                                }
+                        },
+                        
+                        showStructurePreview: function(viewerId, data, structure) {
+                                const container = document.getElementById(viewerId);
+                                
+                                // Parse basic info from structure data
+                                let atomCount = 'Unknown';
+                                let bondCount = 'Unknown';
+                                
+                                try {
+                                        if (structure.extension === 'pdb') {
+                                                const lines = data.split('\n');
+                                                const atomLines = lines.filter(line => line.startsWith('ATOM') || line.startsWith('HETATM'));
+                                                atomCount = atomLines.length;
+                                        } else if (structure.extension === 'sdf' || structure.extension === 'mol') {
+                                                const lines = data.split('\n');
+                                                if (lines.length > 3) {
+                                                        const counts = lines[3].trim().split(/\s+/);
+                                                        if (counts.length >= 2) {
+                                                                atomCount = counts[0];
+                                                                bondCount = counts[1];
+                                                        }
+                                                }
+                                        }
+                                } catch (e) {
+                                        console.log('Error parsing structure info:', e);
+                                }
+                                
+                                container.innerHTML = `
+                                        <div style="width: 100%; height: 100%; background: radial-gradient(circle, #1a2a4a, #000); display: flex; align-items: center; justify-content: center; flex-direction: column; color: white;">
+                                                <div style="font-size: 72px; margin-bottom: 20px; animation: pulse 2s infinite;">⚛️</div>
+                                                <div style="font-size: 20px; margin-bottom: 10px; text-align: center;">${structure.name}</div>
+                                                <div style="font-size: 14px; margin-bottom: 20px; opacity: 0.8; text-align: center;">3D Molecular Structure Preview</div>
+                                                <div style="background: rgba(255,255,255,0.1); padding: 15px 25px; border-radius: 8px; text-align: center; max-width: 90%; margin-bottom: 20px;">
+                                                        <div style="font-size: 13px; margin-bottom: 8px; color: #64b5f6;">📊 Structure Analysis:</div>
+                                                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 12px;">
+                                                                <div>🧪 Format: ${structure.extension?.toUpperCase()}</div>
+                                                                <div>💾 Size: ${structure.formatted_size}</div>
+                                                                <div>⚛️ Atoms: ${atomCount}</div>
+                                                                <div>🔗 Bonds: ${bondCount}</div>
+                                                        </div>
+                                                </div>
+                                                <div style="font-size: 12px; opacity: 0.7; text-align: center; max-width: 80%; line-height: 1.4;">
+                                                        This is a preview of your molecular structure.<br>
+                                                        Click "🔬 Load in Main Viewer" to view with full 3D visualization capabilities.
+                                                </div>
+                                                <style>
+                                                        @keyframes pulse {
+                                                                0% { transform: scale(1); opacity: 1; }
+                                                                50% { transform: scale(1.1); opacity: 0.8; }
+                                                                100% { transform: scale(1); opacity: 1; }
+                                                        }
+                                                </style>
+                                        </div>
+                                `;
+                        },
+                        
+                        openAnimationViewer: function(animation) {
+                                // Hide library modal and show animation viewer
+                                document.getElementById('library-modal').style.display = 'none';
+                                const modal = document.getElementById('animation-viewer-modal');
+                                modal.style.display = 'block';
+                                
+                                // Set title and info
+                                document.getElementById('animation-viewer-title').textContent = `🎬 ${animation.name || 'Animation'}`;
+                                document.getElementById('animation-info').textContent = `${animation.formatted_size || this.formatFileSize(animation.size)} • ${animation.extension || animation.file_type || 'Unknown'}`;
+                                
+                                // Update video details
+                                const details = `
+                                        <strong>File:</strong> ${animation.name}<br>
+                                        <strong>Type:</strong> ${animation.extension || animation.file_type || 'Unknown'}<br>
+                                        <strong>Size:</strong> ${animation.formatted_size || this.formatFileSize(animation.size)}<br>
+                                        <strong>Uploaded:</strong> ${new Date(animation.timestamp || animation.upload_date).toLocaleDateString()}
+                                `;
+                                document.getElementById('video-details').innerHTML = details;
+                                
+                                // Load video
+                                this.loadVideo(animation);
+                                
+                                // Store current animation for actions
+                                this.currentAnimation = animation;
+                        },
+                        
+                        loadVideo: function(animation) {
+                                const player = document.getElementById('animation-player');
+                                const downloadUrl = `php/download_db.php?id=${animation.id}&type=animation`;
+                                
+                                player.src = downloadUrl;
+                                player.load();
+                                
+                                // Set up video event listeners
+                                player.addEventListener('loadedmetadata', function() {
+                                        const details = document.getElementById('video-details');
+                                        details.innerHTML += `<br><strong>Duration:</strong> ${Math.round(player.duration)}s<br><strong>Dimensions:</strong> ${player.videoWidth}x${player.videoHeight}`;
+                                });
+                                
+                                player.addEventListener('error', function(e) {
+                                        console.error('Video load error:', e);
+                                        const player = document.getElementById('animation-player');
+                                        player.style.display = 'none';
+                                        player.parentNode.innerHTML = `
+                                                <div style="color: white; text-align: center; padding: 50px;">
+                                                        <div style="font-size: 48px; margin-bottom: 20px;">⚠️</div>
+                                                        <div>Error loading video: ${animation.name}</div>
+                                                        <div style="margin-top: 20px;">
+                                                                <button onclick="Library.downloadFile('${animation.id}', 'animation')" style="background: #4CAF50; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">📥 Download File</button>
+                                                        </div>
+                                                </div>
+                                        `;
+                                });
+                        },
+                        
+                        // Video control functions
+                        playPause: function() {
+                                const player = document.getElementById('animation-player');
+                                if (player.paused) {
+                                        player.play();
+                                } else {
+                                        player.pause();
+                                }
+                        },
+                        
+                        setSpeed: function(speed) {
+                                const player = document.getElementById('animation-player');
+                                player.playbackRate = parseFloat(speed);
+                        },
+                        
+                        setVolume: function(volume) {
+                                const player = document.getElementById('animation-player');
+                                player.volume = parseFloat(volume);
+                        },
+                        
+                        toggleLoop: function() {
+                                const player = document.getElementById('animation-player');
+                                player.loop = !player.loop;
+                                const btn = document.querySelector('button[onclick="Library.toggleLoop()"]');
+                                btn.style.background = player.loop ? '#4CAF50' : '#2196F3';
+                        },
+                        
+                        captureFrame: function() {
+                                const player = document.getElementById('animation-player');
+                                const canvas = document.createElement('canvas');
+                                canvas.width = player.videoWidth;
+                                canvas.height = player.videoHeight;
+                                const ctx = canvas.getContext('2d');
+                                ctx.drawImage(player, 0, 0);
+                                
+                                // Download the captured frame
+                                const link = document.createElement('a');
+                                link.download = `frame_${this.currentAnimation.name}_${Date.now()}.png`;
+                                link.href = canvas.toDataURL();
+                                link.click();
+                        },
+                        
+                        loadInMainViewer: function() {
+                                if (!this.currentStructure) return;
+                                
+                                // Close the viewer modal
+                                document.getElementById('structure-viewer-modal').style.display = 'none';
+                                
+                                // Load structure in main MolView interface
+                                this.loadStructureInMolView(this.currentStructure);
+                        },
+                        
+                        loadStructureInMolView: function(structure) {
+                                // Load the structure file from local storage
+                                this.loadFileFromIndexedDB(structure.id, 'structure')
+                                        .then(data => {
+                                                // Determine file type and load appropriately
+                                                const extension = structure.extension.toLowerCase();
+                                                
+                                                if (['pdb', 'mmcif'].includes(extension)) {
+                                                        // Load as PDB/protein structure
+                                                        if (typeof Model !== 'undefined') {
+                                                                Model.loadPDB(data);
+                                                        }
+                                                } else if (['mol', 'sdf'].includes(extension)) {
+                                                        // Load as MOL/SDF structure
+                                                        if (typeof Model !== 'undefined') {
+                                                                Model.loadMOL(data);
+                                                        }
+                                                } else if (extension === 'cif') {
+                                                        // Load as CIF crystal structure
+                                                        if (typeof Model !== 'undefined') {
+                                                                Model.loadCIF(data);
+                                                        }
+                                                } else {
+                                                        // Try to load as MOL format by default
+                                                        if (typeof Model !== 'undefined') {
+                                                                Model.loadMOL(data);
+                                                        }
+                                                }
+                                                
+                                                // Show success message
+                                                if (typeof Messages !== 'undefined') {
+                                                        Messages.alert(`Loaded ${structure.name} successfully!`);
+                                                }
+                                        })
+                                        .catch(error => {
+                                                console.error('Error loading structure:', error);
+                                                alert(`Error loading ${structure.name}: ${error.message}`);
+                                        });
+                        },
+                        
+                        downloadCurrentStructure: function() {
+                                if (this.currentStructure) {
+                                        this.downloadFile(this.currentStructure.id, 'structure');
+                                }
+                        },
+                        
+                        downloadCurrentVideo: function() {
+                                if (this.currentAnimation) {
+                                        this.downloadFile(this.currentAnimation.id, 'animation');
+                                }
+                        },
+                        
+                        formatFileSize: function(bytes) {
+                                if (bytes === 0) return '0 Bytes';
+                                const k = 1024;
+                                const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+                        },
+                        
+                        downloadFile: function(fileId, type) {
+                                console.log('Downloading file:', fileId, type);
+                                // Load from IndexedDB and download
+                                this.loadFileFromIndexedDB(fileId, type).then(content => {
+                                        // Find file info
+                                        const files = type === 'animation' ? this.animations : this.structures;
+                                        const file = files.find(f => f.id === fileId);
+                                        if (file) {
+                                                const blob = new Blob([content], { type: 'text/plain' });
+                                                const link = document.createElement('a');
+                                                link.download = file.name;
+                                                link.href = URL.createObjectURL(blob);
+                                                link.click();
+                                                URL.revokeObjectURL(link.href);
+                                        }
+                                }).catch(error => {
+                                        console.error('Download error:', error);
+                                        alert('Download failed: ' + error.message);
+                                });
+                        },
+                        
+                        deleteFile: function(fileId, type) {
+                                if (confirm('Are you sure you want to delete this file?')) {
+                                        // Use IndexedDB delete instead of server
+                                        this.deleteFromIndexedDB(fileId, type).then(() => {
+                                                alert('File deleted successfully');
+                                                this.loadFromServer();
+                                                this.showLibrary(type + 's'); // Refresh the modal
+                                        }).catch(error => {
+                                                console.error('Delete error:', error);
+                                                alert('Delete failed: ' + error.message);
+                                        });
+                                }
+                        },
+                        
+                        clearAllFiles: function() {
+                                if (confirm('Are you sure you want to clear all files from the library?')) {
+                                        // Use IndexedDB clear instead of server
+                                        this.clearIndexedDB().then(() => {
+                                                this.structures = [];
+                                                this.animations = [];
+                                                alert('Library cleared successfully!');
+                                                document.getElementById('library-modal').style.display = 'none';
+                                        }).catch(error => {
+                                                console.error('Clear error:', error);
+                                                alert('Failed to clear library: ' + error.message);
+                                        });
+                                }
+                        }
+                };
+
+                // Desktop Mode and 3D Refresh functionality
+                function toggleDesktopMode() {
+                        const button = document.getElementById('desktop-mode-button');
+                        const viewport = document.querySelector('meta[name="viewport"]');
+                        
+                        if (viewport && viewport.content.includes('user-scalable=no')) {
+                                // Enable desktop mode (allow scaling and wider viewport)
+                                viewport.content = 'width=device-width, initial-scale=0.5, maximum-scale=3.0, user-scalable=yes';
+                                button.innerHTML = '📱 Mobile Mode';
+                                button.style.background = '#4CAF50';
+                                button.title = 'Switch to Mobile Mode';
+                                
+                                // Apply desktop-like CSS
+                                document.body.style.minWidth = '1200px';
+                                document.body.style.transform = 'scale(0.8)';
+                                document.body.style.transformOrigin = 'top left';
+                        } else {
+                                // Enable mobile mode (restore original settings)
+                                viewport.content = 'width=device-width, user-scalable=no';
+                                button.innerHTML = '💻 Desktop Mode';
+                                button.style.background = '#2196F3';
+                                button.title = 'Toggle Desktop Mode';
+                                
+                                // Remove desktop CSS
+                                document.body.style.minWidth = '';
+                                document.body.style.transform = '';
+                                document.body.style.transformOrigin = '';
+                        }
+                }
+
+                function refresh3DView() {
+                        const button = document.getElementById('refresh-3d-button');
+                        
+                        // Add visual feedback
+                        button.style.transform = 'rotate(360deg)';
+                        button.style.transition = 'transform 0.5s ease';
+                        
+                        setTimeout(() => {
+                                button.style.transform = '';
+                                button.style.transition = '';
+                        }, 500);
+                        
+                        // Trigger 3D view refresh by calling MolView's resolve function
+                        try {
+                                if (typeof Messages !== 'undefined') {
+                                        Messages.process({
+                                                type: "update",
+                                                data: "Refreshing 3D view..."
+                                        });
+                                }
+                                
+                                // Force 3D model update
+                                if (typeof Model !== 'undefined' && Model.data && Model.data.source) {
+                                        // Re-render the current model
+                                        Model.render();
+                                } else if (typeof Action !== 'undefined' && typeof Action.resolve === 'function') {
+                                        // Use MolView's resolve action to update 3D view
+                                        Action.resolve();
+                                } else {
+                                        // Fallback: try to click the 2D to 3D button
+                                        const resolveButton = document.getElementById('action-resolve');
+                                        if (resolveButton && resolveButton.click) {
+                                                resolveButton.click();
+                                        }
+                                }
+                        } catch (error) {
+                                console.log('3D refresh initiated');
+                        }
+                }
+
+                // PWA Installation functionality
+                const PWAInstaller = {
+                        deferredPrompt: null,
+                        isInstalled: false,
+                        
+                        init: function() {
+                                this.checkInstallStatus();
+                                this.setupEventListeners();
+                        },
+                        
+                        checkInstallStatus: function() {
+                                // Check if app is already installed
+                                const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+                                const isInWebAppiOS = (window.navigator.standalone === true);
+                                const isInstalled = isStandalone || isInWebAppiOS;
+                                
+                                this.isInstalled = isInstalled;
+                                
+                                if (isInstalled || !this.deferredPrompt) {
+                                        document.getElementById('pwa-install-btn').style.display = 'none';
+                                } else {
+                                        document.getElementById('pwa-install-btn').style.display = 'block';
+                                }
+                        },
+                        
+                        setupEventListeners: function() {
+                                // Listen for beforeinstallprompt event
+                                window.addEventListener('beforeinstallprompt', (e) => {
+                                        console.log('PWA install prompt available');
+                                        e.preventDefault();
+                                        this.deferredPrompt = e;
+                                        this.checkInstallStatus();
+                                });
+                                
+                                // Listen for app installation
+                                window.addEventListener('appinstalled', () => {
+                                        console.log('PWA was installed');
+                                        this.isInstalled = true;
+                                        this.deferredPrompt = null;
+                                        this.checkInstallStatus();
+                                });
+                                
+                                // Install button click handler
+                                const installBtn = document.getElementById('install-pwa-button');
+                                if (installBtn) {
+                                        installBtn.addEventListener('click', () => {
+                                                this.installApp();
+                                        });
+                                }
+                        },
+                        
+                        installApp: function() {
+                                if (!this.deferredPrompt) {
+                                        // Fallback for browsers that don't support install prompt
+                                        alert('To install MolView as an app:\n\n' +
+                                              'Chrome/Edge: Click the ⋮ menu > Install MolView\n' +
+                                              'Safari: Share button > Add to Home Screen\n' +
+                                              'Firefox: Address bar install icon');
+                                        return;
+                                }
+                                
+                                // Show the install prompt
+                                this.deferredPrompt.prompt();
+                                
+                                // Wait for the user to respond to the prompt
+                                this.deferredPrompt.userChoice.then((choiceResult) => {
+                                        console.log('PWA install choice:', choiceResult.outcome);
+                                        
+                                        if (choiceResult.outcome === 'accepted') {
+                                                console.log('User accepted the A2HS prompt');
+                                        } else {
+                                                console.log('User dismissed the A2HS prompt');
+                                        }
+                                        
+                                        this.deferredPrompt = null;
+                                        this.checkInstallStatus();
+                                });
+                        }
+                };
+
+                // Initialize Library when page loads
+                document.addEventListener('DOMContentLoaded', function() {
+                        console.log('DOM loaded, initializing Library...');
+                        Library.init();
+                        PWAInstaller.init();
+                });
+
+                // Also try to initialize after a short delay in case DOM events don't fire
+                setTimeout(function() {
+                        if (typeof Library !== 'undefined') {
+                                Library.init();
+                        }
+                        if (typeof PWAInstaller !== 'undefined') {
+                                PWAInstaller.init();
+                        }
+                }, 1000);
+                </script>
+        </body>
+</html>
