@@ -1,9 +1,7 @@
 import React from "react";
-import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
 
 import "./App.css";
 import Main from "./pages/Main"
-import AboutPage from "./pages/AboutPage"
 
 const appName = "✨ Smart Image Cropper ✨"
 const aboutText = `🚀 Transform your images with powerful batch cropping tools! 

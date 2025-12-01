@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { PDFDocument } from 'pdf-lib';
 import * as pdfjs from 'pdfjs-dist';
-import { WindowManagerProvider, useWindowManager, FloatingWindow, MinimizedWindowBar } from './WindowManager';
-import { parseRangeInput, generateSequentialTags, groupRangesByTag } from '../utils/rangeParser';
+import { useWindowManager, FloatingWindow, MinimizedWindowBar } from './WindowManager';
+import { parseRangeInput, groupRangesByTag } from '../utils/rangeParser';
 import { handleFileExport } from '../utils/browserUtils';
 
 // Decorative Status Bar Buffer Component for PDF Master
@@ -232,9 +232,9 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
   const [currentSplitLine, setCurrentSplitLine] = useState<{ x: number; y: number }[]>([]);
   
   // Enhanced split line drawing with snapping and guides
-  const [snapEnabled, setSnapEnabled] = useState(true);
-  const [guideLines, setGuideLines] = useState<Array<{type: 'horizontal' | 'vertical', position: number}>>([]);
-  const [showGuides, setShowGuides] = useState(true);
+  const [snapEnabled] = useState(true);
+  const [guideLines] = useState<Array<{type: 'horizontal' | 'vertical', position: number}>>([]);
+  const [showGuides] = useState(true);
   
   // Bezier curve smoothing function for precise drawing
   const smoothCurvePoints = (points: {x: number, y: number}[], tension: number = 0.5) => {
@@ -292,7 +292,7 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
 
   // Group Mode functionality
   const [groupMode, setGroupMode] = useState(false);
-  const [showGroupTags, setShowGroupTags] = useState(false);
+  const [, setShowGroupTags] = useState(false);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [pageGroups, setPageGroups] = useState<{[pageId: string]: string}>({});
   const [groupHistory, setGroupHistory] = useState<{pageId: string, tag: string}[]>([]);
@@ -301,17 +301,17 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
     '1️⃣1️⃣', '1️⃣2️⃣', '1️⃣3️⃣', '1️⃣4️⃣', '1️⃣5️⃣', '1️⃣6️⃣', '1️⃣7️⃣', '1️⃣8️⃣', '1️⃣9️⃣', '2️⃣0️⃣'
   ]);
   const [groupTagsPosition, setGroupTagsPosition] = useState({ x: 150, y: 150 });
-  const [groupTagsSize, setGroupTagsSize] = useState({ width: 400, height: 300 });
+  const [, setGroupTagsSize] = useState({ width: 400, height: 300 });
   const [showExportOptions, setShowExportOptions] = useState(false);
-  const [showCustomNames, setShowCustomNames] = useState(false);
+  const [, setShowCustomNames] = useState(false);
   const [customPDFNames, setCustomPDFNames] = useState<{[tag: string]: string}>({});
   const [customNamesPosition, setCustomNamesPosition] = useState({ x: 200, y: 200 });
-  const [customNamesSize, setCustomNamesSize] = useState({ width: 500, height: 400 });
+  const [, setCustomNamesSize] = useState({ width: 500, height: 400 });
 
   // Tag Page Range functionality
-  const [showTagPageRange, setShowTagPageRange] = useState(false);
+  const [, setShowTagPageRange] = useState(false);
   const [tagPageRangePosition, setTagPageRangePosition] = useState({ x: 250, y: 200 });
-  const [tagPageRangeSize, setTagPageRangeSize] = useState({ width: 450, height: 400 });
+  const [, setTagPageRangeSize] = useState({ width: 450, height: 400 });
   const [selectedRangeTag, setSelectedRangeTag] = useState<string | null>(null);
   const [pageRangeInput, setPageRangeInput] = useState<string>('');
 
@@ -339,17 +339,17 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
   }
 
   const [circlingMode, setCirclingMode] = useState(false);
-  const [showShapeSelector, setShowShapeSelector] = useState(false);
+  const [, setShowShapeSelector] = useState(false);
   const [selectedShape, setSelectedShape] = useState<string | null>(null);
   const [pageCircles, setPageCircles] = useState<{[pageId: string]: CircleShape[]}>({});
   const [isDrawingShape, setIsDrawingShape] = useState(false);
   const [currentShapePoints, setCurrentShapePoints] = useState<{ x: number; y: number }[]>([]);
   const [circleHistory, setCircleHistory] = useState<{[pageId: string]: CircleShape[]}[]>([]);
   const [shapeSelectorPosition, setShapeSelectorPosition] = useState({ x: 300, y: 150 });
-  const [shapeSelectorSize, setShapeSelectorSize] = useState({ width: 450, height: 350 });
+  const [, setShapeSelectorSize] = useState({ width: 450, height: 350 });
   const [selectedShapeForEdit, setSelectedShapeForEdit] = useState<{pageId: string, shapeId: string} | null>(null);
-  const [showRotateAllModal, setShowRotateAllModal] = useState(false);
-  const [availableShapes, setAvailableShapes] = useState([
+  const [, setShowRotateAllModal] = useState(false);
+  const [availableShapes] = useState([
     { type: 'circle', name: '⭕ Circle', icon: '⭕' },
     { type: 'rectangle', name: '⬜ Rectangle', icon: '⬜' },
     { type: 'ellipse', name: '🥚 Ellipse', icon: '🥚' },
@@ -362,8 +362,6 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
   const folderInputRef = useRef<HTMLInputElement>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
   const canvasRefs = useRef<{[key: string]: HTMLCanvasElement}>({});
-  const groupTagsRef = useRef<HTMLDivElement>(null);
-  const customNamesRef = useRef<HTMLDivElement>(null);
 
   // Initialize windows for WindowManager
   const windowManager = useWindowManager();
@@ -607,7 +605,7 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
     }));
   };
 
-  const moveCircleShape = (pageId: string, shapeId: string, deltaX: number, deltaY: number) => {
+  const _moveCircleShape = (pageId: string, shapeId: string, deltaX: number, deltaY: number) => {
     setPageCircles(prev => ({
       ...prev,
       [pageId]: (prev[pageId] || []).map(shape => {
@@ -831,7 +829,7 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
   };
 
   // Tag Page Range functions
-  const handleTagPageRangeDrag = (e: React.MouseEvent) => {
+  const _handleTagPageRangeDrag = (e: React.MouseEvent) => {
     const startX = e.clientX;
     const startY = e.clientY;
     const startPos = tagPageRangePosition;
@@ -1078,7 +1076,7 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
   };
 
   // Drag handlers for floating windows
-  const handleGroupTagsDrag = (e: React.MouseEvent) => {
+  const _handleGroupTagsDrag = (e: React.MouseEvent) => {
     const startX = e.clientX;
     const startY = e.clientY;
     const startPos = groupTagsPosition;
@@ -1098,7 +1096,7 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
     document.addEventListener('mouseup', handleMouseUp);
   };
 
-  const handleCustomNamesDrag = (e: React.MouseEvent) => {
+  const _handleCustomNamesDrag = (e: React.MouseEvent) => {
     const startX = e.clientX;
     const startY = e.clientY;
     const startPos = customNamesPosition;
@@ -1118,7 +1116,7 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
     document.addEventListener('mouseup', handleMouseUp);
   };
 
-  const handleShapeSelectorDrag = (e: React.MouseEvent) => {
+  const _handleShapeSelectorDrag = (e: React.MouseEvent) => {
     const startX = e.clientX;
     const startY = e.clientY;
     const startPos = shapeSelectorPosition;
@@ -1378,7 +1376,7 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
   };
   
   // Helper function to generate split lines based on mode
-  const generateSplitLines = (width: number, height: number, mode: 'horizontal' | 'vertical' | 'grid') => {
+  const _generateSplitLines = (width: number, height: number, mode: 'horizontal' | 'vertical' | 'grid') => {
     const lines: SplitLine[] = [];
     
     switch (mode) {
@@ -1429,7 +1427,7 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
   };
   
   // Helper function to process generated segments
-  const processGeneratedSegments = (sourceCanvas: HTMLCanvasElement, lines: SplitLine[]) => {
+  const _processGeneratedSegments = (sourceCanvas: HTMLCanvasElement, lines: SplitLine[]) => {
     const segments: { imageData: string, x: number, y: number, width: number, height: number }[] = [];
     let currentY = 0;
     

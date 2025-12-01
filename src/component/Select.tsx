@@ -1,4 +1,3 @@
-import {useEffect, useRef, useState} from "react";
 interface SelectProps {
     selectItems: Array<{name:string, value: null|{width: number, height: number}}>
     selectId: string

@@ -1,7 +1,7 @@
 import React, {useState, useEffect, useRef} from 'react'
 
 const A2HSButton = () => {
-    const [isAppInstalled, setIsAppInstalled] = useState(false);
+    const [, setIsAppInstalled] = useState(false);
     const promptRef = useRef<any>(null)
 
     const isPWAInstalled = async () => {

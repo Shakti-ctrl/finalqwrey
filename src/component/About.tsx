@@ -1,7 +1,6 @@
 import React from "react";
 
 import "../App.css";
-import A2HSButton from "../A2HSButton";
 
 const About = ({ aboutText, appName, children }: any) => {
   return (
