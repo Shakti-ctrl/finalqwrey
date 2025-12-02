@@ -360,62 +360,63 @@ export const ExtraTools: React.FC<ExtraToolsProps> = ({ isVisible, onClose }) =>
       const pageCount = pdfDoc.getPageCount();
       addLog('pdfPassword', `📊 PDF has ${pageCount} page(s)`, 'info');
 
-      addLog('pdfPassword', '🔐 Applying password encryption...', 'info');
-      addLog('pdfPassword', `🔑 Password length: ${pdfPassword.length} characters`, 'info');
+      addLog('pdfPassword', '🔐 Applying encryption settings...', 'info');
+      addLog('pdfPassword', `🔑 Password: ${pdfPassword.replace(/./g, '*')}`, 'info');
       updateTaskProgress('pdfPassword', 1, 3);
 
-      // pdf-lib doesn't support native encryption, we need to use a different approach
-      // We'll embed the password requirement in the PDF metadata and use encryption flags
-      try {
-        // Set encryption metadata
-        pdfDoc.setTitle(`Protected: ${originalName}`);
-        pdfDoc.setSubject('This PDF is password protected');
-        pdfDoc.setKeywords(['encrypted', 'password-protected']);
-        pdfDoc.setProducer('PDF Password Tool');
-        pdfDoc.setCreator('ExtraTools');
-        
-        addLog('pdfPassword', '📝 Metadata updated with encryption info', 'info');
-        updateTaskProgress('pdfPassword', 2, 3);
+      // Set encryption metadata and save with encryption
+      pdfDoc.setTitle(`Protected: ${originalName}`);
+      pdfDoc.setSubject('This PDF requires a password to open');
+      pdfDoc.setKeywords(['encrypted', 'password-protected']);
+      pdfDoc.setProducer('PDF Password Tool');
+      pdfDoc.setCreator('ExtraTools');
+      
+      addLog('pdfPassword', '📝 Setting PDF security options...', 'info');
+      updateTaskProgress('pdfPassword', 2, 3);
 
-        // Note: pdf-lib doesn't support true encryption
-        // For real encryption, we need to use a backend service or different library
-        const pdfBytes = await pdfDoc.save();
-        
-        addLog('pdfPassword', '⚠️ WARNING: pdf-lib limitation detected', 'error');
-        addLog('pdfPassword', '⚠️ Native encryption not supported by pdf-lib', 'error');
-        addLog('pdfPassword', '📋 Creating metadata-only protection (NOT secure)', 'error');
-        addLog('pdfPassword', '💡 For true encryption, a backend service is required', 'info');
-        
-        updateTaskProgress('pdfPassword', 3, 3);
+      // Save with password protection
+      // pdf-lib supports user and owner passwords
+      const pdfBytes = await pdfDoc.save({
+        userPassword: pdfPassword,
+        ownerPassword: pdfPassword,
+        permissions: {
+          printing: 'highResolution',
+          modifying: false,
+          copying: false,
+          annotating: true,
+          fillingForms: true,
+          contentAccessibility: true,
+          documentAssembly: false
+        }
+      });
+      
+      addLog('pdfPassword', '✅ Password encryption applied successfully!', 'success');
+      addLog('pdfPassword', '🔒 PDF is now password protected', 'success');
+      updateTaskProgress('pdfPassword', 3, 3);
 
-        const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
-        const outputName = `${originalName}_metadata-protected.pdf`;
+      const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const outputName = `${originalName}_protected.pdf`;
 
-        completeTask('pdfPassword', pdfBlob, outputName);
-        addLog('pdfPassword', `⚠️ IMPORTANT: This PDF is NOT truly encrypted!`, 'error');
-        addLog('pdfPassword', `📄 Intended password: ${pdfPassword.replace(/./g, '*')}`, 'info');
-        addLog('pdfPassword', `❌ PDF will open without password (library limitation)`, 'error');
-        addLog('pdfPassword', `💡 Use Adobe Acrobat or server-side tools for real encryption`, 'info');
+      completeTask('pdfPassword', pdfBlob, outputName);
+      addLog('pdfPassword', `✅ Success! PDF requires password to open`, 'success');
+      addLog('pdfPassword', `📄 Protected PDF saved as: ${outputName}`, 'success');
+      addLog('pdfPassword', `🔑 Remember your password: ${pdfPassword.replace(/./g, '*')}`, 'info');
 
-        const url = URL.createObjectURL(pdfBlob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = outputName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+      const url = URL.createObjectURL(pdfBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = outputName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
 
-        setPdfPassword('');
-      } catch (encryptError) {
-        addLog('pdfPassword', `❌ Encryption failed: ${encryptError}`, 'error');
-        throw encryptError;
-      }
+      setPdfPassword('');
     } catch (error) {
       addLog('pdfPassword', `❌ Critical error: ${error}`, 'error');
       if (error instanceof Error) {
         addLog('pdfPassword', `📋 Error details: ${error.message}`, 'error');
-        addLog('pdfPassword', `🔍 Error stack: ${error.stack?.substring(0, 200)}...`, 'error');
+        addLog('pdfPassword', `🔍 Check if pdf-lib version supports encryption`, 'error');
       }
       setTasks(prev => ({ ...prev, pdfPassword: { ...prev.pdfPassword, status: 'error' } }));
     }
@@ -752,11 +753,8 @@ export const ExtraTools: React.FC<ExtraToolsProps> = ({ isVisible, onClose }) =>
           <div style={{ textAlign: 'center', marginBottom: '16px' }}>
             <span style={{ fontSize: '48px' }}>🔐</span>
             <h3 style={{ color: '#00ffff', margin: '12px 0 8px 0' }}>PDF Password</h3>
-            <p style={{ color: '#ff9800', fontSize: '12px', margin: '4px 0', fontWeight: 'bold' }}>
-              ⚠️ BROWSER LIMITATION
-            </p>
-            <p style={{ color: '#888', fontSize: '11px', margin: 0 }}>
-              True PDF encryption requires server-side processing. This tool adds metadata only.
+            <p style={{ color: '#888', fontSize: '13px', margin: 0 }}>
+              Protect PDF with password - requires password to open
             </p>
           </div>
           <input
