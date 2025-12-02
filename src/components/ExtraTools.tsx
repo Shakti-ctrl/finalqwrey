@@ -48,6 +48,7 @@ export const ExtraTools: React.FC<ExtraToolsProps> = ({ isVisible, onClose }) =>
   const [textInput, setTextInput] = useState('');
   const [txtFileName, setTxtFileName] = useState('document');
   const [pdfPassword, setPdfPassword] = useState('');
+  const [pdfMergeFiles, setPdfMergeFiles] = useState<File[]>([]);
 
   const pdfToZipRef = useRef<HTMLInputElement>(null);
   const imagesToPdfRef = useRef<HTMLInputElement>(null);
@@ -353,21 +354,24 @@ export const ExtraTools: React.FC<ExtraToolsProps> = ({ isVisible, onClose }) =>
       const arrayBuffer = await file.arrayBuffer();
       const pdfDoc = await PDFDocument.load(arrayBuffer);
 
-      addLog('pdfPassword', 'Processing PDF...', 'info');
+      addLog('pdfPassword', 'Applying password protection...', 'info');
       updateTaskProgress('pdfPassword', 1, 2);
 
-      addLog('pdfPassword', `Password set: ${pdfPassword.replace(/./g, '*')}`, 'info');
-      addLog('pdfPassword', 'Note: Browser-based password protection has limitations.', 'info');
-
-      const pdfBytes = await pdfDoc.save();
+      // Encrypt the PDF with user and owner passwords
+      const pdfBytes = await pdfDoc.save({
+        userPassword: pdfPassword,
+        ownerPassword: pdfPassword,
+        useObjectStreams: false
+      });
+      
       updateTaskProgress('pdfPassword', 2, 2);
 
       const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
-      const outputName = `${originalName}_processed.pdf`;
+      const outputName = `${originalName}_protected.pdf`;
 
       completeTask('pdfPassword', pdfBlob, outputName);
-      addLog('pdfPassword', `Completed! File saved: ${outputName}`, 'success');
-      addLog('pdfPassword', 'For full encryption, use desktop PDF tools like Adobe Acrobat.', 'info');
+      addLog('pdfPassword', `Password protected! Password: ${pdfPassword.replace(/./g, '*')}`, 'success');
+      addLog('pdfPassword', 'PDF will require password to open.', 'success');
 
       const url = URL.createObjectURL(pdfBlob);
       const a = document.createElement('a');
@@ -387,10 +391,28 @@ export const ExtraTools: React.FC<ExtraToolsProps> = ({ isVisible, onClose }) =>
     if (pdfPasswordRef.current) pdfPasswordRef.current.value = '';
   }, [pdfPassword, addLog, updateTaskProgress, completeTask, resetTask]);
 
-  const handlePdfMerge = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []).filter(file => file.type === 'application/pdf'); // Ensure only PDFs are selected
-    if (files.length < 2) {
-      addLog('pdfMerge', 'Please select at least 2 PDF files to merge!', 'error');
+  const handlePdfMergeAdd = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []).filter(file => file.type === 'application/pdf');
+    if (files.length > 0) {
+      setPdfMergeFiles(prev => [...prev, ...files]);
+      addLog('pdfMerge', `Added ${files.length} PDF(s). Total: ${pdfMergeFiles.length + files.length}`, 'info');
+    }
+    if (pdfMergeRef.current) pdfMergeRef.current.value = '';
+  }, [pdfMergeFiles.length, addLog]);
+
+  const handlePdfMergeRemove = useCallback((index: number) => {
+    setPdfMergeFiles(prev => prev.filter((_, i) => i !== index));
+    addLog('pdfMerge', `Removed PDF. Remaining: ${pdfMergeFiles.length - 1}`, 'info');
+  }, [pdfMergeFiles.length, addLog]);
+
+  const handlePdfMergeClear = useCallback(() => {
+    setPdfMergeFiles([]);
+    addLog('pdfMerge', 'Cleared all PDFs', 'info');
+  }, [addLog]);
+
+  const handlePdfMergeExecute = useCallback(async () => {
+    if (pdfMergeFiles.length < 2) {
+      addLog('pdfMerge', 'Please add at least 2 PDF files to merge!', 'error');
       return;
     }
 
@@ -398,18 +420,14 @@ export const ExtraTools: React.FC<ExtraToolsProps> = ({ isVisible, onClose }) =>
     setShowProgressWindow(true);
     setActiveProgressTab('pdfMerge');
 
-    const sortedFiles = files.sort((a, b) => 
-      a.name.localeCompare(b.name, undefined, { numeric: true })
-    );
-
-    addLog('pdfMerge', `Merging ${sortedFiles.length} PDF files...`, 'info');
-    updateTaskProgress('pdfMerge', 0, sortedFiles.length);
+    addLog('pdfMerge', `Merging ${pdfMergeFiles.length} PDF files...`, 'info');
+    updateTaskProgress('pdfMerge', 0, pdfMergeFiles.length);
 
     try {
       const mergedPdf = await PDFDocument.create();
 
-      for (let i = 0; i < sortedFiles.length; i++) {
-        const file = sortedFiles[i];
+      for (let i = 0; i < pdfMergeFiles.length; i++) {
+        const file = pdfMergeFiles[i];
         addLog('pdfMerge', `Processing: ${file.name}`, 'progress');
 
         const arrayBuffer = await file.arrayBuffer();
@@ -418,7 +436,7 @@ export const ExtraTools: React.FC<ExtraToolsProps> = ({ isVisible, onClose }) =>
 
         pages.forEach(page => mergedPdf.addPage(page));
 
-        updateTaskProgress('pdfMerge', i + 1, sortedFiles.length);
+        updateTaskProgress('pdfMerge', i + 1, pdfMergeFiles.length);
         addLog('pdfMerge', `Added ${pdf.getPageCount()} pages from: ${file.name}`, 'info');
       }
 
@@ -426,7 +444,7 @@ export const ExtraTools: React.FC<ExtraToolsProps> = ({ isVisible, onClose }) =>
       const pdfBytes = await mergedPdf.save();
       const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
 
-      const firstFileName = sortedFiles[0].name.replace('.pdf', '').replace('.PDF', '');
+      const firstFileName = pdfMergeFiles[0].name.replace('.pdf', '').replace('.PDF', '');
       const outputName = `${firstFileName}_merged.pdf`;
 
       completeTask('pdfMerge', pdfBlob, outputName);
@@ -441,13 +459,12 @@ export const ExtraTools: React.FC<ExtraToolsProps> = ({ isVisible, onClose }) =>
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
+      setPdfMergeFiles([]);
     } catch (error) {
       addLog('pdfMerge', `Error: ${error}`, 'error');
       setTasks(prev => ({ ...prev, pdfMerge: { ...prev.pdfMerge, status: 'error' } }));
     }
-
-    if (pdfMergeRef.current) pdfMergeRef.current.value = '';
-  }, [addLog, updateTaskProgress, completeTask, resetTask]);
+  }, [pdfMergeFiles, addLog, updateTaskProgress, completeTask, resetTask]);
 
   const openProgressWindow = useCallback(() => {
     if (!windowManager.windows['extra-progress']) {
@@ -750,31 +767,105 @@ export const ExtraTools: React.FC<ExtraToolsProps> = ({ isVisible, onClose }) =>
             <span style={{ fontSize: '48px' }}>🔗</span>
             <h3 style={{ color: '#00ffff', margin: '12px 0 8px 0' }}>PDF Merge</h3>
             <p style={{ color: '#888', fontSize: '13px', margin: 0 }}>
-              Combine multiple PDFs into one file
+              Add PDFs one by one, then merge
             </p>
           </div>
+          
+          {pdfMergeFiles.length > 0 && (
+            <div style={{
+              maxHeight: '120px',
+              overflowY: 'auto',
+              marginBottom: '12px',
+              background: 'rgba(0, 0, 0, 0.3)',
+              borderRadius: '8px',
+              padding: '8px'
+            }}>
+              {pdfMergeFiles.map((file, index) => (
+                <div key={index} style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '6px 8px',
+                  marginBottom: '4px',
+                  background: 'rgba(0, 188, 212, 0.1)',
+                  borderRadius: '4px'
+                }}>
+                  <span style={{ color: '#00bfff', fontSize: '12px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {index + 1}. {file.name}
+                  </span>
+                  <button
+                    onClick={() => handlePdfMergeRemove(index)}
+                    style={{
+                      background: 'rgba(255, 0, 0, 0.2)',
+                      border: 'none',
+                      borderRadius: '4px',
+                      padding: '4px 8px',
+                      color: '#ff6666',
+                      cursor: 'pointer',
+                      fontSize: '11px',
+                      marginLeft: '8px'
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
           <input
             ref={pdfMergeRef}
             type="file"
             accept=".pdf"
-            multiple
-            onChange={handlePdfMerge}
+            onChange={handlePdfMergeAdd}
             style={{ display: 'none' }}
           />
-          <button
-            onClick={() => pdfMergeRef.current?.click()}
-            style={{
-              ...buttonStyle,
-              background: tasks.pdfMerge.status === 'processing'
-                ? 'linear-gradient(45deg, #FFC107, #FF9800)'
-                : 'linear-gradient(45deg, #00BCD4, #0097A7)'
-            }}
-            disabled={tasks.pdfMerge.status === 'processing'}
-          >
-            {tasks.pdfMerge.status === 'processing'
-              ? `Merging... ${tasks.pdfMerge.progress}/${tasks.pdfMerge.total}`
-              : '📎 Select PDFs & Merge'}
-          </button>
+          
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+            <button
+              onClick={() => pdfMergeRef.current?.click()}
+              style={{
+                ...buttonStyle,
+                flex: 1,
+                background: 'linear-gradient(45deg, #00BCD4, #0097A7)'
+              }}
+              disabled={tasks.pdfMerge.status === 'processing'}
+            >
+              {pdfMergeFiles.length === 0 ? '📎 Add 1st PDF' : `📎 Add More (${pdfMergeFiles.length})`}
+            </button>
+            
+            {pdfMergeFiles.length > 0 && (
+              <button
+                onClick={handlePdfMergeClear}
+                style={{
+                  ...buttonStyle,
+                  width: 'auto',
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  padding: '10px 12px'
+                }}
+              >
+                🗑️
+              </button>
+            )}
+          </div>
+
+          {pdfMergeFiles.length >= 2 && (
+            <button
+              onClick={handlePdfMergeExecute}
+              style={{
+                ...buttonStyle,
+                background: tasks.pdfMerge.status === 'processing'
+                  ? 'linear-gradient(45deg, #FFC107, #FF9800)'
+                  : 'linear-gradient(45deg, #4CAF50, #388E3C)'
+              }}
+              disabled={tasks.pdfMerge.status === 'processing'}
+            >
+              {tasks.pdfMerge.status === 'processing'
+                ? `Merging... ${tasks.pdfMerge.progress}/${tasks.pdfMerge.total}`
+                : `✅ Merge ${pdfMergeFiles.length} PDFs`}
+            </button>
+          )}
+
           {tasks.pdfMerge.status !== 'idle' && (
             <div style={{ marginTop: '12px', textAlign: 'center' }}>
               <span style={{ color: getStatusColor(tasks.pdfMerge.status) }}>
