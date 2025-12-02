@@ -30,14 +30,14 @@ public class MainActivity extends BridgeActivity {
     }
     
     @Override
-    protected void onPause() {
+    public void onPause() {
         super.onPause();
         // Pause WebView to free resources
         this.bridge.getWebView().onPause();
     }
     
     @Override
-    protected void onResume() {
+    public void onResume() {
         super.onResume();
         // Resume WebView
         this.bridge.getWebView().onResume();
