@@ -119,26 +119,174 @@ export const isCapacitorNative = (): boolean => {
 };
 
 /**
- * Handles file export operations by either triggering direct download (web) 
- * or saving to device and sharing (Capacitor)
+ * Shows a popup dialog to choose download method
+ * @param blob The file blob to export
+ * @param filename The name to save the file as
+ * @returns Promise that resolves when user makes a choice
+ */
+const showDownloadOptionsPopup = async (blob: Blob, filename: string): Promise<void> => {
+  return new Promise((resolve) => {
+    // Create popup overlay
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+      animation: fadeIn 0.2s ease;
+    `;
+
+    // Create popup dialog
+    const dialog = document.createElement('div');
+    dialog.style.cssText = `
+      background: linear-gradient(135deg, rgba(0, 40, 80, 0.95), rgba(0, 20, 40, 0.98));
+      border: 2px solid rgba(0, 255, 255, 0.4);
+      border-radius: 16px;
+      padding: 24px;
+      max-width: 400px;
+      width: 90%;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 40px rgba(0, 255, 255, 0.2);
+      animation: slideIn 0.3s ease;
+    `;
+
+    dialog.innerHTML = `
+      <style>
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes slideIn {
+          from { transform: translateY(-20px); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
+        }
+        .download-option-btn {
+          width: 100%;
+          padding: 14px 20px;
+          margin: 8px 0;
+          border: none;
+          border-radius: 10px;
+          font-size: 15px;
+          font-weight: bold;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+        }
+        .download-option-btn:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 16px rgba(0, 191, 255, 0.4);
+        }
+        .download-option-btn:active {
+          transform: translateY(0);
+        }
+        .browser-download {
+          background: linear-gradient(45deg, #2196F3, #1976D2);
+          color: white;
+        }
+        .android-share {
+          background: linear-gradient(45deg, #4CAF50, #388E3C);
+          color: white;
+        }
+        .cancel-btn {
+          background: linear-gradient(45deg, #666, #555);
+          color: white;
+        }
+      </style>
+      <h3 style="color: #00ffff; margin: 0 0 8px 0; font-size: 20px; text-align: center;">
+        📥 Choose Download Method
+      </h3>
+      <p style="color: #888; font-size: 13px; text-align: center; margin: 0 0 20px 0;">
+        ${filename}
+      </p>
+      <button class="download-option-btn browser-download" id="browser-download">
+        <span style="font-size: 20px;">🌐</span>
+        <span>Browser Download</span>
+      </button>
+      ${isCapacitorNative() ? `
+        <button class="download-option-btn android-share" id="android-share">
+          <span style="font-size: 20px;">📱</span>
+          <span>Save to Device & Share</span>
+        </button>
+      ` : ''}
+      <button class="download-option-btn cancel-btn" id="cancel-download">
+        <span style="font-size: 20px;">✕</span>
+        <span>Cancel</span>
+      </button>
+    `;
+
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+
+    // Handle browser download
+    const browserBtn = dialog.querySelector('#browser-download');
+    browserBtn?.addEventListener('click', async () => {
+      try {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 100);
+      } catch (error) {
+        console.error('Browser download error:', error);
+      }
+      document.body.removeChild(overlay);
+      resolve();
+    });
+
+    // Handle Android share (if available)
+    const androidBtn = dialog.querySelector('#android-share');
+    androidBtn?.addEventListener('click', async () => {
+      try {
+        await saveFileToDevice(blob, filename, blob.type || 'application/octet-stream');
+      } catch (error) {
+        console.error('Android share error:', error);
+      }
+      document.body.removeChild(overlay);
+      resolve();
+    });
+
+    // Handle cancel
+    const cancelBtn = dialog.querySelector('#cancel-download');
+    cancelBtn?.addEventListener('click', () => {
+      document.body.removeChild(overlay);
+      resolve();
+    });
+
+    // Close on overlay click
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        document.body.removeChild(overlay);
+        resolve();
+      }
+    });
+  });
+};
+
+/**
+ * Handles file export operations by showing a popup to choose download method
  * @param blob The file blob to export
  * @param filename The name to save the file as
  */
 export const handleFileExport = async (blob: Blob, filename: string): Promise<void> => {
   try {
-    if (isCapacitorNative()) {
-      // In Capacitor native environment, save to device and share
-      await saveFileToDevice(blob, filename, blob.type || 'application/octet-stream');
-    } else {
-      // In web browser, trigger direct download
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      link.click();
-      setTimeout(() => URL.revokeObjectURL(url), 100);
-    }
+    await showDownloadOptionsPopup(blob, filename);
   } catch (error) {
     console.error('Error handling file export:', error);
+    // Fallback to browser download
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 100);
   }
 };

@@ -288,7 +288,7 @@ export const ExtraTools: React.FC<ExtraToolsProps> = ({ isVisible, onClose }) =>
     if (imagesToPdfRef.current) imagesToPdfRef.current.value = '';
   }, [addLog, updateTaskProgress, completeTask, resetTask]);
 
-  const handleTextToTxt = useCallback(() => {
+  const handleTextToTxt = useCallback(async () => {
     if (!textInput.trim()) {
       addLog('textToTxt', 'Please enter some text first!', 'error');
       return;
