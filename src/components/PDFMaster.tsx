@@ -4510,9 +4510,9 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
         flex: 1,
         overflow: 'auto',
         padding: '24px',
-        touchAction: (splitMode || circlingMode) ? 'none' : 'auto',
-        userSelect: (splitMode || circlingMode) ? 'none' : 'auto',
-        WebkitUserSelect: (splitMode || circlingMode) ? 'none' : 'auto'
+        touchAction: (splitMode !== 'off' || circlingMode) ? 'none' : 'auto',
+        userSelect: (splitMode !== 'off' || circlingMode) ? 'none' : 'auto',
+        WebkitUserSelect: (splitMode !== 'off' || circlingMode) ? 'none' : 'auto'
       }}>
         {pages.length === 0 ? (
           <div style={{
@@ -4779,13 +4779,13 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
                       objectFit: 'contain',
                       transform: `rotate(${page.rotation}deg) ${zoomedPages.has(page.id) ? 'scale(1.2)' : 'scale(1)'}`,
                       transition: 'transform 0.3s ease',
-                      pointerEvents: rearrangeMode || splitMode ? 'none' : 'auto',
+                      pointerEvents: rearrangeMode || splitMode !== 'off' ? 'none' : 'auto',
                       opacity: rearrangeMode ? 0.7 : 1
                     }}
                   />
                   
                   {/* Canvas for drawing split lines - always show if page has lines or in split mode */}
-                  {(splitMode || (page.splitLines && page.splitLines.length > 0) || circlingMode || (pageCircles[page.id] && pageCircles[page.id].length > 0)) && (
+                  {(splitMode !== 'off' || (page.splitLines && page.splitLines.length > 0) || circlingMode || (pageCircles[page.id] && pageCircles[page.id].length > 0)) && (
                     <>
                       <canvas
                         ref={(el) => {
@@ -4810,15 +4810,15 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
                           left: 0,
                           width: '100%',
                           height: '100%',
-                          cursor: (splitMode || circlingMode) ? 'crosshair' : 'default',
+                          cursor: (splitMode !== 'off' || circlingMode) ? 'crosshair' : 'default',
                           zIndex: 250,
-                          border: (splitMode || circlingMode) ? '2px dashed rgba(255, 0, 0, 0.5)' : 'none',
-                          background: (splitMode || circlingMode) ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-                          pointerEvents: (splitMode || circlingMode) ? 'auto' : 'none',
-                          touchAction: (splitMode || circlingMode) ? 'none' : 'auto'
+                          border: (splitMode !== 'off' || circlingMode) ? '2px dashed rgba(255, 0, 0, 0.5)' : 'none',
+                          background: (splitMode !== 'off' || circlingMode) ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+                          pointerEvents: (splitMode !== 'off' || circlingMode) ? 'auto' : 'none',
+                          touchAction: (splitMode !== 'off' || circlingMode) ? 'none' : 'auto'
                         }}
                         onMouseDown={(e) => {
-                          if (splitMode) {
+                          if (splitMode !== 'off') {
                             startDrawingSplitLine(page.id, e);
                           } else if (circlingMode && selectedShape) {
                             startDrawingShape(page.id, e);
@@ -4864,7 +4864,7 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
                           e.currentTarget.dispatchEvent(mouseEvent);
                         }}
                         onMouseMove={(e) => {
-                          if (splitMode) continueDrawingSplitLine(page.id, e);
+                          if (splitMode !== 'off') continueDrawingSplitLine(page.id, e);
                           if (circlingMode && selectedShape) continueDrawingShape(page.id, e);
                         }}
                         onTouchMove={(e) => {
@@ -4878,7 +4878,7 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
                           e.currentTarget.dispatchEvent(mouseEvent);
                         }}
                         onMouseUp={() => {
-                          if (splitMode) finishDrawingSplitLine();
+                          if (splitMode !== 'off') finishDrawingSplitLine();
                           if (circlingMode && selectedShape) finishDrawingShape();
                         }}
                         onTouchEnd={(e) => {
@@ -4889,7 +4889,7 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
                           e.currentTarget.dispatchEvent(mouseEvent);
                         }}
                         onMouseLeave={() => {
-                          if (splitMode) finishDrawingSplitLine();
+                          if (splitMode !== 'off') finishDrawingSplitLine();
                           if (circlingMode && selectedShape) finishDrawingShape();
                         }}
                         onClick={(e) => {
@@ -4931,7 +4931,7 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
                         }}
                       />
                       {/* Drawing instructions overlay - only in split or circle mode */}
-                      {splitMode && (
+                      {splitMode !== 'off' && (
                         <div style={{
                           position: 'absolute',
                           bottom: '8px',
