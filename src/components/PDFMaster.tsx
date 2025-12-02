@@ -1058,13 +1058,9 @@ export const PDFMaster: React.FC<PDFMasterProps> = ({ isVisible, onClose, shared
       updateProcessingJob(jobId, { message: 'Creating ZIP file...' });
       const zipBlob = await zip.generateAsync({ type: 'blob' });
       
-      // Download ZIP
-      const url = URL.createObjectURL(zipBlob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${activeSession.name.replace(/\s+/g, '_')}_grouped_pdfs.zip`;
-      link.click();
-      URL.revokeObjectURL(url);
+      // Download ZIP using Capacitor-compatible method
+      const filename = `${activeSession.name.replace(/\s+/g, '_')}_grouped_pdfs.zip`;
+      await handleFileExport(zipBlob, filename);
       
       completeProcessingJob(jobId, 'completed', `✅ Created ${groupKeys.length} PDFs in ZIP file successfully!`);
       windowManager.updateWindow('customNames', { visible: false });

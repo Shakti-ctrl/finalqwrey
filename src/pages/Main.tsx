@@ -12,6 +12,7 @@ import { WindowManagerProvider } from "../components/WindowManager";
 import { MolView } from "../components/MolView";
 import { ExtraTools } from "../components/ExtraTools";
 import { handleFileExport } from "../utils/browserUtils";
+import { parseRangeInput, groupRangesByTag } from '../utils/rangeParser';
 
 // import { VirtualKeyboard, FloatingKeyboardButton } from "../components/VirtualKeyboard";
 
@@ -707,7 +708,7 @@ const DraggablePanel = ({
             startPosX: position.x,
             startPosY: position.y
         };
-        
+
         // Prevent scrolling while dragging
         e.preventDefault();
     };
@@ -737,7 +738,7 @@ const DraggablePanel = ({
                 x: Math.max(0, Math.min(window.innerWidth - size.width, dragRef.current.startPosX + deltaX)),
                 y: Math.max(0, Math.min(window.innerHeight - size.height, dragRef.current.startPosY + deltaY))
             });
-            
+
             // Prevent scrolling while dragging
             e.preventDefault();
         }
@@ -772,7 +773,7 @@ const DraggablePanel = ({
     const handleResize = (e: React.MouseEvent | React.TouchEvent) => {
         e.stopPropagation();
         setIsResizing(true);
-        
+
         const isTouch = 'touches' in e;
         const startX = isTouch ? e.touches[0].clientX : e.clientX;
         const startY = isTouch ? e.touches[0].clientY : e.clientY;
@@ -789,7 +790,7 @@ const DraggablePanel = ({
                 width: Math.max(280, startWidth + deltaX),
                 height: Math.max(300, startHeight + deltaY)
             });
-            
+
             // Prevent scrolling while resizing
             if (isTouch) {
                 e.preventDefault();
@@ -1448,7 +1449,7 @@ function Main({ appName, aboutText } :any) {
             ctx.translate(centerX, centerY);
             ctx.rotate((watermark.rotation * Math.PI) / 180);
             ctx.globalAlpha = watermark.opacity / 100;
-            
+
             // Apply blending mode if specified
             if (watermark.blendingMode) {
                 ctx.globalCompositeOperation = watermark.blendingMode as GlobalCompositeOperation;
@@ -1474,7 +1475,7 @@ function Main({ appName, aboutText } :any) {
                 if (watermark.textEffects?.gradient) {
                     const gradient = watermark.textEffects.gradient;
                     let fillStyle: CanvasGradient;
-                    
+
                     if (gradient.type === 'linear') {
                         const angle = gradient.angle || 0;
                         const rad = angle * Math.PI / 180;
@@ -1486,11 +1487,11 @@ function Main({ appName, aboutText } :any) {
                     } else {
                         fillStyle = ctx.createRadialGradient(0, 0, 0, 0, 0, watermark.size.width / 2);
                     }
-                    
+
                     gradient.colors.forEach(colorStop => {
                         fillStyle.addColorStop(colorStop.position, colorStop.color);
                     });
-                    
+
                     ctx.fillStyle = fillStyle;
                 } else if (watermark.textEffects?.pattern) {
                     try {
@@ -1515,18 +1516,18 @@ function Main({ appName, aboutText } :any) {
                     const rad = effect3d.angle * Math.PI / 180;
                     const offsetX = Math.cos(rad) * effect3d.depth;
                     const offsetY = Math.sin(rad) * effect3d.depth;
-                    
+
                     // Draw 3D shadow
                     ctx.fillStyle = effect3d.color;
                     ctx.fillText(watermark.text, offsetX, offsetY);
-                    
+
                     // Draw main text on top
                     if (watermark.textEffects?.gradient || watermark.textEffects?.pattern) {
                         // Reapply gradient or pattern for main text
                         if (watermark.textEffects?.gradient) {
                             const gradient = watermark.textEffects.gradient;
                             let fillStyle: CanvasGradient;
-                            
+
                             if (gradient.type === 'linear') {
                                 const angle = gradient.angle || 0;
                                 const rad = angle * Math.PI / 180;
@@ -1538,11 +1539,11 @@ function Main({ appName, aboutText } :any) {
                             } else {
                                 fillStyle = ctx.createRadialGradient(0, 0, 0, 0, 0, watermark.size.width / 2);
                             }
-                            
+
                             gradient.colors.forEach(colorStop => {
                                 fillStyle.addColorStop(colorStop.position, colorStop.color);
                             });
-                            
+
                             ctx.fillStyle = fillStyle;
                         } else if (watermark.textEffects?.pattern) {
                             try {
@@ -1566,7 +1567,7 @@ function Main({ appName, aboutText } :any) {
                     ctx.lineWidth = 1;
                     ctx.strokeText(watermark.text, 0, 0);
                 }
-                
+
                 // Apply shadow effect
                 if (watermark.textEffects?.shadow) {
                     ctx.shadowColor = watermark.textColor === '#FFFFFF' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.7)';
@@ -1574,7 +1575,7 @@ function Main({ appName, aboutText } :any) {
                     ctx.shadowOffsetX = watermark.textEffects.shadow.offsetX || 1;
                     ctx.shadowOffsetY = watermark.textEffects.shadow.offsetY || 1;
                 }
-                
+
                 // Apply glow effect
                 if (watermark.textEffects?.glow) {
                     ctx.shadowColor = watermark.textColor;
@@ -1746,26 +1747,26 @@ function Main({ appName, aboutText } :any) {
                 }
 
                 ctx.strokeStyle = signature.strokeColor || '#000000';
-                
+
                 // Draw the signature path with enhanced pen physics
                 ctx.beginPath();
-                
+
                 // For the first point
                 const firstPoint = signature.points[0];
                 ctx.moveTo(firstPoint.x, firstPoint.y);
-                
+
                 // Draw smooth curves between points with pressure sensitivity
                 for (let i = 1; i < signature.points.length; i++) {
                     const currentPoint = signature.points[i];
                     const prevPoint = signature.points[i - 1];
-                    
+
                     // Calculate velocity for realistic pen physics
                     const velocity = i > 1 ? 
                         Math.sqrt(Math.pow(currentPoint.x - prevPoint.x, 2) + Math.pow(currentPoint.y - prevPoint.y, 2)) : 0;
-                    
+
                     // Apply pressure sensitivity with velocity-based adjustments
                     let pressure = currentPoint.pressure || 1;
-                    
+
                     // Adjust pressure based on brush type and velocity
                     switch (signature.brushType) {
                         case 'marker':
@@ -1789,7 +1790,7 @@ function Main({ appName, aboutText } :any) {
                             ctx.lineWidth = (signature.strokeWidth || 2) * pressure;
                             break;
                     }
-                    
+
                     // For smoother curves, use quadratic curves when we have enough points
                     if (i > 1) {
                         const controlX = (prevPoint.x + currentPoint.x) / 2;
@@ -1799,7 +1800,7 @@ function Main({ appName, aboutText } :any) {
                         ctx.lineTo(currentPoint.x, currentPoint.y);
                     }
                 }
-                
+
                 ctx.stroke();
                 ctx.setLineDash([]);
             } else if (signature.image) {
@@ -2053,16 +2054,16 @@ function Main({ appName, aboutText } :any) {
             const watermarksCopy = [...prev];
             const index = watermarksCopy.findIndex(w => w.id === id);
             if (index === -1 || index === 0) return prev;
-            
+
             // Swap with previous watermark
             const temp = watermarksCopy[index];
             watermarksCopy[index] = watermarksCopy[index - 1];
             watermarksCopy[index - 1] = temp;
-            
+
             // Update layer orders
             watermarksCopy[index].layerOrder = index;
             watermarksCopy[index - 1].layerOrder = index - 1;
-            
+
             return watermarksCopy;
         });
     };
@@ -2073,16 +2074,16 @@ function Main({ appName, aboutText } :any) {
             const watermarksCopy = [...prev];
             const index = watermarksCopy.findIndex(w => w.id === id);
             if (index === -1 || index === watermarksCopy.length - 1) return prev;
-            
+
             // Swap with next watermark
             const temp = watermarksCopy[index];
             watermarksCopy[index] = watermarksCopy[index + 1];
             watermarksCopy[index + 1] = temp;
-            
+
             // Update layer orders
             watermarksCopy[index].layerOrder = index;
             watermarksCopy[index + 1].layerOrder = index + 1;
-            
+
             return watermarksCopy;
         });
     };
@@ -2093,10 +2094,10 @@ function Main({ appName, aboutText } :any) {
             const watermarksCopy = [...prev];
             const index = watermarksCopy.findIndex(w => w.id === id);
             if (index === -1 || index === watermarksCopy.length - 1) return prev;
-            
+
             const watermark = watermarksCopy.splice(index, 1)[0];
             watermarksCopy.push(watermark);
-            
+
             // Update layer orders
             return watermarksCopy.map((w, i) => ({ ...w, layerOrder: i }));
         });
@@ -2108,10 +2109,10 @@ function Main({ appName, aboutText } :any) {
             const watermarksCopy = [...prev];
             const index = watermarksCopy.findIndex(w => w.id === id);
             if (index === -1 || index === 0) return prev;
-            
+
             const watermark = watermarksCopy.splice(index, 1)[0];
             watermarksCopy.unshift(watermark);
-            
+
             // Update layer orders
             return watermarksCopy.map((w, i) => ({ ...w, layerOrder: i }));
         });
@@ -2833,13 +2834,13 @@ const generateFallbackPreview = () => {
         // Temporarily replace the watermark for this specific image
         const originalWatermarks = [...watermarks];
         const watermarkIndex = watermarks.findIndex(w => w.id === customWatermark.id);
-        
+
         if (watermarkIndex !== -1) {
             // Update the specific watermark with custom settings
             const updatedWatermarks = [...originalWatermarks];
             updatedWatermarks[watermarkIndex] = customWatermark;
             setWatermarks(updatedWatermarks);
-            
+
             // Apply to the specific image
             const crop = crops[imageIndex];
             if (crop && crop.width && crop.height) {
@@ -2851,10 +2852,10 @@ const generateFallbackPreview = () => {
                     }));
                 }
             }
-            
+
             // Restore original watermarks
             setWatermarks(originalWatermarks);
-            
+
             alert(`✅ Custom watermark applied to image ${imageIndex + 1}!`);
         } else {
             alert('⚠️ Watermark not found.');
@@ -2870,20 +2871,20 @@ const generateFallbackPreview = () => {
 
         // Save current state
         saveQualityState();
-        
+
         // Store original cropped images for undo functionality
         setOriginalCroppedImages({ ...croppedImages });
-        
+
         // Apply different watermarks to different images
         for (const [imageIndex, customWatermarks] of Object.entries(imageWatermarkMap)) {
             const index = parseInt(imageIndex);
             const crop = crops[index];
-            
+
             if (crop && crop.width && crop.height) {
                 // Temporarily set custom watermarks
                 const originalWatermarks = [...watermarks];
                 setWatermarks(customWatermarks);
-                
+
                 // Apply to the specific image
                 const enhancedImage = await generateEnhancedCroppedImage(crop, index);
                 if (enhancedImage.dataUrl) {
@@ -2892,12 +2893,12 @@ const generateFallbackPreview = () => {
                         [index]: enhancedImage.dataUrl
                     }));
                 }
-                
+
                 // Restore original watermarks
                 setWatermarks(originalWatermarks);
             }
         }
-        
+
         alert('✅ Different watermarks applied to selected images!');
     };
 
@@ -3326,11 +3327,11 @@ const generateFallbackPreview = () => {
                 }
             }
 
-            const zipBlob = await zip.generateAsync({ type: 'blob' });
-            const filename = `cropped_images_${new Date().toISOString().slice(0, 10)}.zip`;
-            
-            // Use our browser utility to handle the export properly
-            await handleFileExport(zipBlob, filename);
+            const blob = await zip.generateAsync({ type: 'blob' });
+            const filename = `cropped-images-${new Date().toISOString().split('T')[0]}.zip`;
+
+            // Use Capacitor-compatible export
+            await handleFileExport(blob, filename);
 
             setProcessingJobs(prev => prev.map(job =>
                 job.id === jobId ? { ...job, status: 'completed', result: { filename: filename } } : job
@@ -3466,7 +3467,7 @@ const generateFallbackPreview = () => {
 
             const tabName = activeTab.name.replace(/[^a-zA-Z0-9-_]/g, '_');
             const filename = `${tabName}_${new Date().toISOString().slice(0, 10)}.pdf`;
-            
+
             // Use our browser utility to handle the export properly
             const pdfBlob = pdf.output('blob');
             await handleFileExport(pdfBlob, filename);
@@ -3956,7 +3957,7 @@ const generateFallbackPreview = () => {
                     display: "flex",
                     gap: "8px",
                     padding: "10px",
-                    background: "linear-gradient(135deg, rgba(0, 20, 40, 0.8), rgba(0, 40, 80, 0.6))",
+                    background: "linear-gradient(135deg, rgba(0, 20, 40, 0.9), rgba(0, 40, 80, 0.6))",
                     borderBottom: "1px solid rgba(0, 255, 255, 0.2)",
                     boxShadow: "0 1px 10px rgba(0, 255, 255, 0.1)",
                     alignItems: "center",
@@ -4319,7 +4320,11 @@ const generateFallbackPreview = () => {
                                 >
                                     🎨 Quality Tools
                                 </button>
-                                <button onClick={onSaveCropped} className="export-button" title="Ctrl+E">
+                                <button
+                                    onClick={onSaveCropped}
+                                    className="export-button"
+                                    title="Ctrl+E"
+                                >
                                     📷 Export Images
                                 </button>
                                 <button onClick={onSaveAsZip} className="export-button" title="Ctrl+Z">
@@ -4816,7 +4821,7 @@ const generateFallbackPreview = () => {
                                 if (isResizing) return;
                                 const startX = e.touches[0].clientX - previewPosition.x;
                                 const startY = e.touches[0].clientY - previewPosition.y;
-                                
+
                                 // Prevent scrolling while dragging
                                 e.preventDefault();
 
@@ -4825,7 +4830,7 @@ const generateFallbackPreview = () => {
                                         x: e.touches[0].clientX - startX,
                                         y: e.touches[0].clientY - startY
                                     });
-                                    
+
                                     // Prevent scrolling while dragging
                                     e.preventDefault();
                                 };
@@ -4886,6 +4891,7 @@ const generateFallbackPreview = () => {
                                     height: '100%',
                                     objectFit: 'contain'
                                 }}
+                                draggable={false}
                             />
 
                             {/* Enhanced Watermark Overlays with Control Points */}
@@ -4956,7 +4962,7 @@ const generateFallbackPreview = () => {
                                         const startX = e.touches[0].clientX;
                                         const startY = e.touches[0].clientY;
                                         const startPos = { ...watermark.position };
-                                        
+
                                         // Prevent scrolling while moving
                                         e.preventDefault();
 
@@ -4970,7 +4976,7 @@ const generateFallbackPreview = () => {
                                             };
 
                                             updateWatermark(watermark.id, { position: newPos });
-                                            
+
                                             // Prevent scrolling while moving
                                             e.preventDefault();
                                         };
@@ -5118,7 +5124,7 @@ const generateFallbackPreview = () => {
                                         const startX = e.touches[0].clientX;
                                         const startY = e.touches[0].clientY;
                                         const startPos = { ...signature.position };
-                                        
+
                                         // Prevent scrolling while moving
                                         e.preventDefault();
 
@@ -5132,7 +5138,7 @@ const generateFallbackPreview = () => {
                                             };
 
                                             updateSignature(signature.id, { position: newPos });
-                                            
+
                                             // Prevent scrolling while moving
                                             e.preventDefault();
                                         };
@@ -5382,7 +5388,7 @@ const generateFallbackPreview = () => {
                                     const startY = e.touches[0].clientY;
                                     const startWidth = previewSize.width;
                                     const startHeight = previewSize.height;
-                                    
+
                                     // Prevent scrolling while resizing
                                     e.preventDefault();
 
@@ -5392,7 +5398,7 @@ const generateFallbackPreview = () => {
                                         const newWidth = Math.max(200, startWidth + deltaX);
                                         const newHeight = Math.max(150, startHeight + deltaY);
                                         setPreviewSize({ width: newWidth, height: newHeight });
-                                        
+
                                         // Prevent scrolling while resizing
                                         e.preventDefault();
                                     };
@@ -6146,7 +6152,7 @@ const generateFallbackPreview = () => {
                                                 </label>
                                                 <select
                                                     value={borderStyle}
-                                                    onChange={(e) => setBorderStyle(e.target.value)}
+                                                    onChange={(e) => setBorderStyle(e.target.value as any)}
                                                     style={{ width: '100%', padding: '8px', border: '2px solid #ddd', borderRadius: '5px' }}
                                                 >
                                                     {BORDER_STYLES.map(style => (
@@ -6903,7 +6909,7 @@ const generateFallbackPreview = () => {
                             </div>
 
                             <div style={{ marginBottom: '20px' }}>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
                                     <input
                                         type="checkbox"
                                         checked={borderShadow}
