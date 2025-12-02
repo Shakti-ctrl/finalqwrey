@@ -94,7 +94,7 @@ export const ExtraTools: React.FC<ExtraToolsProps> = ({ isVisible, onClose }) =>
       [taskType]: {
         ...prev[taskType],
         logs: [...prev[taskType].logs, {
-          id: Date.now().toString(),
+          id: `${taskType}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           timestamp: new Date(),
           message,
           type
@@ -183,6 +183,9 @@ export const ExtraTools: React.FC<ExtraToolsProps> = ({ isVisible, onClose }) =>
       for (let pageNum = 1; pageNum <= numPages; pageNum++) {
         addLog('pdfToZip', `Extracting page ${pageNum}/${numPages}`, 'progress');
 
+        // Allow UI to update between pages
+        await new Promise(resolve => setTimeout(resolve, 10));
+
         const page = await pdf.getPage(pageNum);
         const viewport = page.getViewport({ scale: 2 });
 
@@ -206,6 +209,10 @@ export const ExtraTools: React.FC<ExtraToolsProps> = ({ isVisible, onClose }) =>
 
         updateTaskProgress('pdfToZip', pageNum, numPages);
         addLog('pdfToZip', `Extracted: ${fileName}`, 'info');
+        
+        // Cleanup canvas to free memory
+        canvas.width = 0;
+        canvas.height = 0;
       }
 
       addLog('pdfToZip', 'Creating ZIP file...', 'info');
@@ -1529,9 +1536,9 @@ export const ExtraTools: React.FC<ExtraToolsProps> = ({ isVisible, onClose }) =>
                   No activity yet. Start a task to see logs.
                 </div>
               ) : (
-                tasks[activeProgressTab].logs.map((log) => (
+                tasks[activeProgressTab].logs.map((log, index) => (
                   <div
-                    key={log.id}
+                    key={`${log.id}-${index}-${log.timestamp.getTime()}`}
                     style={{
                       padding: '6px 8px',
                       marginBottom: '4px',
