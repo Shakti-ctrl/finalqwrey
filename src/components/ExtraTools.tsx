@@ -30,7 +30,7 @@ interface TaskState {
   result?: Blob;
 }
 
-type TaskType = 'pdfToZip' | 'imagesToPdf' | 'textToTxt' | 'pdfPassword' | 'pdfMerge';
+type TaskType = 'pdfToZip' | 'imagesToPdf' | 'textToTxt' | 'pdfPassword' | 'pdfMerge' | 'imageConverter' | 'imageCompressor' | 'qrGenerator' | 'imageSplitter';
 
 export const ExtraTools: React.FC<ExtraToolsProps> = ({ isVisible, onClose }) => {
   const windowManager = useWindowManager();
@@ -40,7 +40,11 @@ export const ExtraTools: React.FC<ExtraToolsProps> = ({ isVisible, onClose }) =>
     imagesToPdf: { id: 'imagesToPdf', name: 'Images to PDF', status: 'idle', progress: 0, total: 0, logs: [] },
     textToTxt: { id: 'textToTxt', name: 'Text to TXT', status: 'idle', progress: 0, total: 0, logs: [] },
     pdfPassword: { id: 'pdfPassword', name: 'PDF Password', status: 'idle', progress: 0, total: 0, logs: [] },
-    pdfMerge: { id: 'pdfMerge', name: 'PDF Merge', status: 'idle', progress: 0, total: 0, logs: [] }
+    pdfMerge: { id: 'pdfMerge', name: 'PDF Merge', status: 'idle', progress: 0, total: 0, logs: [] },
+    imageConverter: { id: 'imageConverter', name: 'Image Converter', status: 'idle', progress: 0, total: 0, logs: [] },
+    imageCompressor: { id: 'imageCompressor', name: 'Image Compressor', status: 'idle', progress: 0, total: 0, logs: [] },
+    qrGenerator: { id: 'qrGenerator', name: 'QR Generator', status: 'idle', progress: 0, total: 0, logs: [] },
+    imageSplitter: { id: 'imageSplitter', name: 'Image Splitter', status: 'idle', progress: 0, total: 0, logs: [] }
   });
 
   const [activeProgressTab, setActiveProgressTab] = useState<TaskType>('pdfToZip');
@@ -49,11 +53,28 @@ export const ExtraTools: React.FC<ExtraToolsProps> = ({ isVisible, onClose }) =>
   const [txtFileName, setTxtFileName] = useState('document');
   const [pdfPassword, setPdfPassword] = useState('');
   const [pdfMergeFiles, setPdfMergeFiles] = useState<File[]>([]);
+  
+  // Image Converter states
+  const [convertFormat, setConvertFormat] = useState<'png' | 'jpg' | 'webp' | 'bmp'>('png');
+  
+  // Image Compressor states
+  const [compressionQuality, setCompressionQuality] = useState(80);
+  
+  // QR Code Generator states
+  const [qrText, setQrText] = useState('');
+  const [qrSize, setQrSize] = useState(256);
+  
+  // Image Splitter states
+  const [splitRows, setSplitRows] = useState(2);
+  const [splitCols, setSplitCols] = useState(2);
 
   const pdfToZipRef = useRef<HTMLInputElement>(null);
   const imagesToPdfRef = useRef<HTMLInputElement>(null);
   const pdfPasswordRef = useRef<HTMLInputElement>(null);
   const pdfMergeRef = useRef<HTMLInputElement>(null);
+  const imageConverterRef = useRef<HTMLInputElement>(null);
+  const imageCompressorRef = useRef<HTMLInputElement>(null);
+  const imageSplitterRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isVisible && !windowManager.windows['extra-progress']) {
@@ -407,6 +428,288 @@ export const ExtraTools: React.FC<ExtraToolsProps> = ({ isVisible, onClose }) =>
     setPdfMergeFiles([]);
     addLog('pdfMerge', 'Cleared all PDFs', 'info');
   }, [addLog]);
+
+  const handleImageConverter = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []).filter(file => file.type.startsWith('image/'));
+    if (files.length === 0) {
+      addLog('imageConverter', 'No valid image files selected!', 'error');
+      return;
+    }
+
+    resetTask('imageConverter');
+    setShowProgressWindow(true);
+    setActiveProgressTab('imageConverter');
+
+    addLog('imageConverter', `Converting ${files.length} images to ${convertFormat.toUpperCase()}...`, 'info');
+    updateTaskProgress('imageConverter', 0, files.length);
+
+    try {
+      const JSZip = (await import('jszip')).default;
+      const zip = new JSZip();
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        addLog('imageConverter', `Converting: ${file.name}`, 'progress');
+
+        const img = new Image();
+        const imgURL = URL.createObjectURL(file);
+        
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+          img.src = imgURL;
+        });
+
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0);
+
+        URL.revokeObjectURL(imgURL);
+
+        let mimeType = 'image/png';
+        let extension = 'png';
+        
+        if (convertFormat === 'jpg') {
+          mimeType = 'image/jpeg';
+          extension = 'jpg';
+        } else if (convertFormat === 'webp') {
+          mimeType = 'image/webp';
+          extension = 'webp';
+        } else if (convertFormat === 'bmp') {
+          mimeType = 'image/bmp';
+          extension = 'bmp';
+        }
+
+        const blob = await new Promise<Blob>((resolve) => {
+          canvas.toBlob((blob) => resolve(blob!), mimeType, 1.0);
+        });
+
+        const baseName = file.name.replace(/\.[^/.]+$/, '');
+        const fileName = `${baseName}.${extension}`;
+        zip.file(fileName, blob);
+
+        updateTaskProgress('imageConverter', i + 1, files.length);
+        addLog('imageConverter', `Converted: ${fileName}`, 'info');
+      }
+
+      addLog('imageConverter', 'Creating ZIP file...', 'info');
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const outputName = `converted_images_${convertFormat}.zip`;
+
+      completeTask('imageConverter', zipBlob, outputName);
+      addLog('imageConverter', `Completed! ${files.length} images converted`, 'success');
+
+      const { handleFileExport } = await import('../utils/browserUtils');
+      await handleFileExport(zipBlob, outputName);
+
+    } catch (error) {
+      addLog('imageConverter', `Error: ${error}`, 'error');
+      setTasks(prev => ({ ...prev, imageConverter: { ...prev.imageConverter, status: 'error' } }));
+    }
+
+    if (imageConverterRef.current) imageConverterRef.current.value = '';
+  }, [convertFormat, addLog, updateTaskProgress, completeTask, resetTask]);
+
+  const handleImageCompressor = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []).filter(file => file.type.startsWith('image/'));
+    if (files.length === 0) {
+      addLog('imageCompressor', 'No valid image files selected!', 'error');
+      return;
+    }
+
+    resetTask('imageCompressor');
+    setShowProgressWindow(true);
+    setActiveProgressTab('imageCompressor');
+
+    addLog('imageCompressor', `Compressing ${files.length} images at ${compressionQuality}% quality...`, 'info');
+    updateTaskProgress('imageCompressor', 0, files.length);
+
+    try {
+      const JSZip = (await import('jszip')).default;
+      const zip = new JSZip();
+      let totalOriginalSize = 0;
+      let totalCompressedSize = 0;
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        totalOriginalSize += file.size;
+        addLog('imageCompressor', `Compressing: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`, 'progress');
+
+        const img = new Image();
+        const imgURL = URL.createObjectURL(file);
+        
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+          img.src = imgURL;
+        });
+
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0);
+
+        URL.revokeObjectURL(imgURL);
+
+        const blob = await new Promise<Blob>((resolve) => {
+          canvas.toBlob((blob) => resolve(blob!), 'image/jpeg', compressionQuality / 100);
+        });
+
+        totalCompressedSize += blob.size;
+        const baseName = file.name.replace(/\.[^/.]+$/, '');
+        const fileName = `${baseName}_compressed.jpg`;
+        zip.file(fileName, blob);
+
+        updateTaskProgress('imageCompressor', i + 1, files.length);
+        addLog('imageCompressor', `Compressed: ${fileName} (${(blob.size / 1024).toFixed(1)} KB)`, 'info');
+      }
+
+      const savings = ((1 - totalCompressedSize / totalOriginalSize) * 100).toFixed(1);
+      addLog('imageCompressor', `Total size reduction: ${savings}%`, 'success');
+      
+      addLog('imageCompressor', 'Creating ZIP file...', 'info');
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const outputName = `compressed_images_q${compressionQuality}.zip`;
+
+      completeTask('imageCompressor', zipBlob, outputName);
+      addLog('imageCompressor', `Completed! ${files.length} images compressed`, 'success');
+
+      const { handleFileExport } = await import('../utils/browserUtils');
+      await handleFileExport(zipBlob, outputName);
+
+    } catch (error) {
+      addLog('imageCompressor', `Error: ${error}`, 'error');
+      setTasks(prev => ({ ...prev, imageCompressor: { ...prev.imageCompressor, status: 'error' } }));
+    }
+
+    if (imageCompressorRef.current) imageCompressorRef.current.value = '';
+  }, [compressionQuality, addLog, updateTaskProgress, completeTask, resetTask]);
+
+  const handleQrGenerator = useCallback(async () => {
+    if (!qrText.trim()) {
+      addLog('qrGenerator', 'Please enter text or URL first!', 'error');
+      return;
+    }
+
+    resetTask('qrGenerator');
+    setShowProgressWindow(true);
+    setActiveProgressTab('qrGenerator');
+
+    addLog('qrGenerator', 'Generating QR code...', 'info');
+    updateTaskProgress('qrGenerator', 1, 1);
+
+    try {
+      const QRCode = (await import('qrcode')).default;
+      
+      const qrDataUrl = await QRCode.toDataURL(qrText, {
+        width: qrSize,
+        margin: 2,
+        errorCorrectionLevel: 'M'
+      });
+
+      const response = await fetch(qrDataUrl);
+      const blob = await response.blob();
+      const outputName = 'qrcode.png';
+
+      completeTask('qrGenerator', blob, outputName);
+      addLog('qrGenerator', 'QR code generated successfully!', 'success');
+
+      const { handleFileExport } = await import('../utils/browserUtils');
+      await handleFileExport(blob, outputName);
+
+    } catch (error) {
+      addLog('qrGenerator', `Error: ${error}`, 'error');
+      setTasks(prev => ({ ...prev, qrGenerator: { ...prev.qrGenerator, status: 'error' } }));
+    }
+  }, [qrText, qrSize, addLog, updateTaskProgress, completeTask, resetTask]);
+
+  const handleImageSplitter = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !file.type.startsWith('image/')) {
+      addLog('imageSplitter', 'Please select a valid image file!', 'error');
+      return;
+    }
+
+    resetTask('imageSplitter');
+    setShowProgressWindow(true);
+    setActiveProgressTab('imageSplitter');
+
+    const totalPieces = splitRows * splitCols;
+    addLog('imageSplitter', `Splitting image into ${splitRows}x${splitCols} grid (${totalPieces} pieces)...`, 'info');
+    updateTaskProgress('imageSplitter', 0, totalPieces);
+
+    try {
+      const img = new Image();
+      const imgURL = URL.createObjectURL(file);
+      
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = imgURL;
+      });
+
+      const pieceWidth = Math.floor(img.width / splitCols);
+      const pieceHeight = Math.floor(img.height / splitRows);
+
+      const JSZip = (await import('jszip')).default;
+      const zip = new JSZip();
+
+      let pieceCount = 0;
+      for (let row = 0; row < splitRows; row++) {
+        for (let col = 0; col < splitCols; col++) {
+          const canvas = document.createElement('canvas');
+          canvas.width = pieceWidth;
+          canvas.height = pieceHeight;
+          const ctx = canvas.getContext('2d')!;
+
+          ctx.drawImage(
+            img,
+            col * pieceWidth,
+            row * pieceHeight,
+            pieceWidth,
+            pieceHeight,
+            0,
+            0,
+            pieceWidth,
+            pieceHeight
+          );
+
+          const blob = await new Promise<Blob>((resolve) => {
+            canvas.toBlob((blob) => resolve(blob!), 'image/png');
+          });
+
+          const fileName = `piece_${row + 1}_${col + 1}.png`;
+          zip.file(fileName, blob);
+
+          pieceCount++;
+          updateTaskProgress('imageSplitter', pieceCount, totalPieces);
+          addLog('imageSplitter', `Created: ${fileName}`, 'info');
+        }
+      }
+
+      URL.revokeObjectURL(imgURL);
+
+      addLog('imageSplitter', 'Creating ZIP file...', 'info');
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const baseName = file.name.replace(/\.[^/.]+$/, '');
+      const outputName = `${baseName}_split_${splitRows}x${splitCols}.zip`;
+
+      completeTask('imageSplitter', zipBlob, outputName);
+      addLog('imageSplitter', `Completed! ${totalPieces} pieces created`, 'success');
+
+      const { handleFileExport } = await import('../utils/browserUtils');
+      await handleFileExport(zipBlob, outputName);
+
+    } catch (error) {
+      addLog('imageSplitter', `Error: ${error}`, 'error');
+      setTasks(prev => ({ ...prev, imageSplitter: { ...prev.imageSplitter, status: 'error' } }));
+    }
+
+    if (imageSplitterRef.current) imageSplitterRef.current.value = '';
+  }, [splitRows, splitCols, addLog, updateTaskProgress, completeTask, resetTask]);
 
   const handlePdfMergeExecute = useCallback(async () => {
     if (pdfMergeFiles.length < 2) {
@@ -863,6 +1166,249 @@ export const ExtraTools: React.FC<ExtraToolsProps> = ({ isVisible, onClose }) =>
             <div style={{ marginTop: '12px', textAlign: 'center' }}>
               <span style={{ color: getStatusColor(tasks.pdfMerge.status) }}>
                 {getStatusIcon(tasks.pdfMerge.status)} {tasks.pdfMerge.status}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* 6. Image Format Converter */}
+        <div style={cardStyle}>
+          <div style={{ textAlign: 'center', marginBottom: '16px' }}>
+            <span style={{ fontSize: '48px' }}>🔄</span>
+            <h3 style={{ color: '#00ffff', margin: '12px 0 8px 0' }}>Image Converter</h3>
+            <p style={{ color: '#888', fontSize: '13px', margin: 0 }}>
+              Convert images between formats (PNG, JPG, WEBP, BMP)
+            </p>
+          </div>
+          <select
+            value={convertFormat}
+            onChange={(e) => setConvertFormat(e.target.value as any)}
+            style={{
+              ...inputStyle,
+              cursor: 'pointer'
+            }}
+          >
+            <option value="png">PNG</option>
+            <option value="jpg">JPG</option>
+            <option value="webp">WEBP</option>
+            <option value="bmp">BMP</option>
+          </select>
+          <input
+            ref={imageConverterRef}
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={handleImageConverter}
+            style={{ display: 'none' }}
+          />
+          <button
+            onClick={() => imageConverterRef.current?.click()}
+            style={{
+              ...buttonStyle,
+              background: tasks.imageConverter.status === 'processing'
+                ? 'linear-gradient(45deg, #FFC107, #FF9800)'
+                : 'linear-gradient(45deg, #00BCD4, #0097A7)'
+            }}
+            disabled={tasks.imageConverter.status === 'processing'}
+          >
+            {tasks.imageConverter.status === 'processing'
+              ? `Converting... ${tasks.imageConverter.progress}/${tasks.imageConverter.total}`
+              : `📤 Upload & Convert to ${convertFormat.toUpperCase()}`}
+          </button>
+          {tasks.imageConverter.status !== 'idle' && (
+            <div style={{ marginTop: '12px', textAlign: 'center' }}>
+              <span style={{ color: getStatusColor(tasks.imageConverter.status) }}>
+                {getStatusIcon(tasks.imageConverter.status)} {tasks.imageConverter.status}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* 7. Image Compressor */}
+        <div style={cardStyle}>
+          <div style={{ textAlign: 'center', marginBottom: '16px' }}>
+            <span style={{ fontSize: '48px' }}>📉</span>
+            <h3 style={{ color: '#00ffff', margin: '12px 0 8px 0' }}>Image Compressor</h3>
+            <p style={{ color: '#888', fontSize: '13px', margin: 0 }}>
+              Reduce file size while maintaining quality
+            </p>
+          </div>
+          <div style={{ marginBottom: '12px' }}>
+            <label style={{ color: '#00bfff', fontSize: '12px', display: 'block', marginBottom: '4px' }}>
+              Quality: {compressionQuality}%
+            </label>
+            <input
+              type="range"
+              min="10"
+              max="100"
+              value={compressionQuality}
+              onChange={(e) => setCompressionQuality(parseInt(e.target.value))}
+              style={{
+                width: '100%',
+                cursor: 'pointer'
+              }}
+            />
+          </div>
+          <input
+            ref={imageCompressorRef}
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={handleImageCompressor}
+            style={{ display: 'none' }}
+          />
+          <button
+            onClick={() => imageCompressorRef.current?.click()}
+            style={{
+              ...buttonStyle,
+              background: tasks.imageCompressor.status === 'processing'
+                ? 'linear-gradient(45deg, #FFC107, #FF9800)'
+                : 'linear-gradient(45deg, #FF5722, #E64A19)'
+            }}
+            disabled={tasks.imageCompressor.status === 'processing'}
+          >
+            {tasks.imageCompressor.status === 'processing'
+              ? `Compressing... ${tasks.imageCompressor.progress}/${tasks.imageCompressor.total}`
+              : '🗜️ Upload & Compress'}
+          </button>
+          {tasks.imageCompressor.status !== 'idle' && (
+            <div style={{ marginTop: '12px', textAlign: 'center' }}>
+              <span style={{ color: getStatusColor(tasks.imageCompressor.status) }}>
+                {getStatusIcon(tasks.imageCompressor.status)} {tasks.imageCompressor.status}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* 8. QR Code Generator */}
+        <div style={cardStyle}>
+          <div style={{ textAlign: 'center', marginBottom: '16px' }}>
+            <span style={{ fontSize: '48px' }}>📱</span>
+            <h3 style={{ color: '#00ffff', margin: '12px 0 8px 0' }}>QR Code Generator</h3>
+            <p style={{ color: '#888', fontSize: '13px', margin: 0 }}>
+              Generate QR codes from text or URLs
+            </p>
+          </div>
+          <input
+            type="text"
+            placeholder="Enter text or URL"
+            value={qrText}
+            onChange={(e) => setQrText(e.target.value)}
+            style={inputStyle}
+          />
+          <div style={{ marginBottom: '12px' }}>
+            <label style={{ color: '#00bfff', fontSize: '12px', display: 'block', marginBottom: '4px' }}>
+              Size: {qrSize}px
+            </label>
+            <input
+              type="range"
+              min="128"
+              max="512"
+              step="64"
+              value={qrSize}
+              onChange={(e) => setQrSize(parseInt(e.target.value))}
+              style={{
+                width: '100%',
+                cursor: 'pointer'
+              }}
+            />
+          </div>
+          <button
+            onClick={handleQrGenerator}
+            style={{
+              ...buttonStyle,
+              background: tasks.qrGenerator.status === 'processing'
+                ? 'linear-gradient(45deg, #FFC107, #FF9800)'
+                : 'linear-gradient(45deg, #9C27B0, #7B1FA2)'
+            }}
+            disabled={tasks.qrGenerator.status === 'processing' || !qrText.trim()}
+          >
+            {tasks.qrGenerator.status === 'processing'
+              ? 'Generating...'
+              : '🎯 Generate QR Code'}
+          </button>
+          {tasks.qrGenerator.status !== 'idle' && (
+            <div style={{ marginTop: '12px', textAlign: 'center' }}>
+              <span style={{ color: getStatusColor(tasks.qrGenerator.status) }}>
+                {getStatusIcon(tasks.qrGenerator.status)} {tasks.qrGenerator.status}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* 9. Image Splitter */}
+        <div style={cardStyle}>
+          <div style={{ textAlign: 'center', marginBottom: '16px' }}>
+            <span style={{ fontSize: '48px' }}>✂️</span>
+            <h3 style={{ color: '#00ffff', margin: '12px 0 8px 0' }}>Image Splitter</h3>
+            <p style={{ color: '#888', fontSize: '13px', margin: 0 }}>
+              Split images into grid pieces
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ color: '#00bfff', fontSize: '12px', display: 'block', marginBottom: '4px' }}>
+                Rows: {splitRows}
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="10"
+                value={splitRows}
+                onChange={(e) => setSplitRows(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
+                style={{
+                  ...inputStyle,
+                  marginBottom: 0,
+                  textAlign: 'center'
+                }}
+              />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={{ color: '#00bfff', fontSize: '12px', display: 'block', marginBottom: '4px' }}>
+                Cols: {splitCols}
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="10"
+                value={splitCols}
+                onChange={(e) => setSplitCols(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
+                style={{
+                  ...inputStyle,
+                  marginBottom: 0,
+                  textAlign: 'center'
+                }}
+              />
+            </div>
+          </div>
+          <p style={{ color: '#888', fontSize: '11px', textAlign: 'center', margin: '0 0 12px 0' }}>
+            Will create {splitRows * splitCols} pieces
+          </p>
+          <input
+            ref={imageSplitterRef}
+            type="file"
+            accept="image/*"
+            onChange={handleImageSplitter}
+            style={{ display: 'none' }}
+          />
+          <button
+            onClick={() => imageSplitterRef.current?.click()}
+            style={{
+              ...buttonStyle,
+              background: tasks.imageSplitter.status === 'processing'
+                ? 'linear-gradient(45deg, #FFC107, #FF9800)'
+                : 'linear-gradient(45deg, #E91E63, #C2185B)'
+            }}
+            disabled={tasks.imageSplitter.status === 'processing'}
+          >
+            {tasks.imageSplitter.status === 'processing'
+              ? `Splitting... ${tasks.imageSplitter.progress}/${tasks.imageSplitter.total}`
+              : '✂️ Upload & Split'}
+          </button>
+          {tasks.imageSplitter.status !== 'idle' && (
+            <div style={{ marginTop: '12px', textAlign: 'center' }}>
+              <span style={{ color: getStatusColor(tasks.imageSplitter.status) }}>
+                {getStatusIcon(tasks.imageSplitter.status)} {tasks.imageSplitter.status}
               </span>
             </div>
           )}
