@@ -4,7 +4,8 @@ import * as pdfjsLib from 'pdfjs-dist';
 import { PDFDocument } from 'pdf-lib';
 import JSZip from 'jszip';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+// FIX: Use a local worker file to avoid fetch issues.
+pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.js';
 
 interface ExtraToolsProps {
   isVisible: boolean;
@@ -33,7 +34,7 @@ type TaskType = 'pdfToZip' | 'imagesToPdf' | 'textToTxt' | 'pdfPassword' | 'pdfM
 
 export const ExtraTools: React.FC<ExtraToolsProps> = ({ isVisible, onClose }) => {
   const windowManager = useWindowManager();
-  
+
   const [tasks, setTasks] = useState<Record<TaskType, TaskState>>({
     pdfToZip: { id: 'pdfToZip', name: 'PDF to ZIP', status: 'idle', progress: 0, total: 0, logs: [] },
     imagesToPdf: { id: 'imagesToPdf', name: 'Images to PDF', status: 'idle', progress: 0, total: 0, logs: [] },
@@ -41,13 +42,13 @@ export const ExtraTools: React.FC<ExtraToolsProps> = ({ isVisible, onClose }) =>
     pdfPassword: { id: 'pdfPassword', name: 'PDF Password', status: 'idle', progress: 0, total: 0, logs: [] },
     pdfMerge: { id: 'pdfMerge', name: 'PDF Merge', status: 'idle', progress: 0, total: 0, logs: [] }
   });
-  
+
   const [activeProgressTab, setActiveProgressTab] = useState<TaskType>('pdfToZip');
   const [showProgressWindow, setShowProgressWindow] = useState(false);
   const [textInput, setTextInput] = useState('');
   const [txtFileName, setTxtFileName] = useState('document');
   const [pdfPassword, setPdfPassword] = useState('');
-  
+
   const pdfToZipRef = useRef<HTMLInputElement>(null);
   const imagesToPdfRef = useRef<HTMLInputElement>(null);
   const pdfPasswordRef = useRef<HTMLInputElement>(null);
@@ -138,49 +139,66 @@ export const ExtraTools: React.FC<ExtraToolsProps> = ({ isVisible, onClose }) =>
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const originalName = file.name.replace('.pdf', '').replace('.PDF', '');
     resetTask('pdfToZip');
     setShowProgressWindow(true);
     setActiveProgressTab('pdfToZip');
+
     addLog('pdfToZip', `Starting extraction: ${file.name}`, 'info');
 
     try {
       const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      const totalPages = pdf.numPages;
-      
-      addLog('pdfToZip', `PDF loaded: ${totalPages} pages found`, 'info');
-      updateTaskProgress('pdfToZip', 0, totalPages);
+      const uint8Array = new Uint8Array(arrayBuffer);
+
+      // Use the same worker approach as PDFMaster
+      const pdf = await pdfjsLib.getDocument({ 
+        data: uint8Array,
+        useSystemFonts: true,
+        standardFontDataUrl: undefined,
+        // workerSrc: '/pdf.worker.js' // This is already set globally
+      }).promise;
+
+      const numPages = pdf.numPages;
+      updateTaskProgress('pdfToZip', 0, numPages);
+      addLog('pdfToZip', `Total pages: ${numPages}`, 'info');
 
       const zip = new JSZip();
 
-      for (let i = 1; i <= totalPages; i++) {
-        const page = await pdf.getPage(i);
-        const scale = 2;
-        const viewport = page.getViewport({ scale });
-        
+      for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+        addLog('pdfToZip', `Extracting page ${pageNum}/${numPages}`, 'progress');
+
+        const page = await pdf.getPage(pageNum);
+        const viewport = page.getViewport({ scale: 2 });
+
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d')!;
-        canvas.height = viewport.height;
         canvas.width = viewport.width;
+        canvas.height = viewport.height;
 
-        await page.render({ canvasContext: context, viewport, canvas } as any).promise;
-        
-        const imageData = canvas.toDataURL('image/png').split(',')[1];
-        const paddedNum = String(i).padStart(3, '0');
-        zip.file(`${originalName}_page_${paddedNum}.png`, imageData, { base64: true });
-        
-        updateTaskProgress('pdfToZip', i, totalPages);
-        addLog('pdfToZip', `Extracted page ${i}/${totalPages}`, 'progress');
+        await page.render({
+          canvasContext: context,
+          viewport: viewport,
+        }).promise;
+
+        const blob = await new Promise<Blob>((resolve) => {
+          canvas.toBlob((blob) => resolve(blob!), 'image/png');
+        });
+
+        const fileName = `page_${pageNum.toString().padStart(3, '0')}.png`;
+        zip.file(fileName, blob);
+
+        updateTaskProgress('pdfToZip', pageNum, numPages);
+        addLog('pdfToZip', `Extracted: ${fileName}`, 'info');
       }
 
       addLog('pdfToZip', 'Creating ZIP file...', 'info');
       const zipBlob = await zip.generateAsync({ type: 'blob' });
-      const outputName = `${originalName}_pages.zip`;
-      
+
+      const baseName = file.name.replace('.pdf', '').replace('.PDF', '');
+      const outputName = `${baseName}_pages.zip`;
+
       completeTask('pdfToZip', zipBlob, outputName);
-      addLog('pdfToZip', `Completed! Ready to download: ${outputName}`, 'success');
-      
+      addLog('pdfToZip', `Completed! ${numPages} pages extracted`, 'success');
+
       const url = URL.createObjectURL(zipBlob);
       const a = document.createElement('a');
       a.href = url;
@@ -189,72 +207,83 @@ export const ExtraTools: React.FC<ExtraToolsProps> = ({ isVisible, onClose }) =>
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      
+
     } catch (error) {
       addLog('pdfToZip', `Error: ${error}`, 'error');
       setTasks(prev => ({ ...prev, pdfToZip: { ...prev.pdfToZip, status: 'error' } }));
     }
-    
+
     if (pdfToZipRef.current) pdfToZipRef.current.value = '';
   }, [addLog, updateTaskProgress, completeTask, resetTask]);
 
   const handleImagesToPdf = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
+    const files = Array.from(e.target.files || []).filter(file => 
+      file.type.startsWith('image/')
+    );
+
+    if (files.length === 0) {
+      addLog('imagesToPdf', 'No valid image files selected!', 'error');
+      return;
+    }
 
     resetTask('imagesToPdf');
     setShowProgressWindow(true);
     setActiveProgressTab('imagesToPdf');
-    
-    const folderName = files[0].webkitRelativePath?.split('/')[0] || 'images';
-    addLog('imagesToPdf', `Processing ${files.length} images from: ${folderName}`, 'info');
-    updateTaskProgress('imagesToPdf', 0, files.length);
+
+    const sortedFiles = files.sort((a, b) => 
+      a.name.localeCompare(b.name, undefined, { numeric: true })
+    );
+
+    addLog('imagesToPdf', `Converting ${sortedFiles.length} images to PDF...`, 'info');
+    updateTaskProgress('imagesToPdf', 0, sortedFiles.length);
 
     try {
       const pdfDoc = await PDFDocument.create();
-      
-      const imageFiles = files.filter(f => 
-        f.type.startsWith('image/') || 
-        /\.(jpg|jpeg|png|gif|bmp|webp)$/i.test(f.name)
-      ).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
 
-      if (imageFiles.length === 0) {
-        addLog('imagesToPdf', 'No valid image files found!', 'error');
-        setTasks(prev => ({ ...prev, imagesToPdf: { ...prev.imagesToPdf, status: 'error' } }));
-        return;
-      }
+      for (let i = 0; i < sortedFiles.length; i++) {
+        const file = sortedFiles[i];
+        addLog('imagesToPdf', `Processing: ${file.name}`, 'progress');
 
-      for (let i = 0; i < imageFiles.length; i++) {
-        const file = imageFiles[i];
         const arrayBuffer = await file.arrayBuffer();
-        
+        const uint8Array = new Uint8Array(arrayBuffer);
+
         let image;
-        if (file.type === 'image/png' || file.name.toLowerCase().endsWith('.png')) {
-          image = await pdfDoc.embedPng(arrayBuffer);
-        } else {
-          image = await pdfDoc.embedJpg(arrayBuffer);
+        try {
+          if (file.type === 'image/png') {
+            image = await pdfDoc.embedPng(uint8Array);
+          } else if (file.type === 'image/jpeg' || file.type === 'image/jpg') {
+            image = await pdfDoc.embedJpg(uint8Array);
+          } else {
+            addLog('imagesToPdf', `Skipping unsupported format: ${file.name}`, 'error');
+            continue;
+          }
+
+          const page = pdfDoc.addPage([image.width, image.height]);
+          page.drawImage(image, {
+            x: 0,
+            y: 0,
+            width: image.width,
+            height: image.height,
+          });
+
+          updateTaskProgress('imagesToPdf', i + 1, sortedFiles.length);
+          addLog('imagesToPdf', `Added: ${file.name}`, 'info');
+        } catch (err) {
+          addLog('imagesToPdf', `Error processing ${file.name}: ${err}`, 'error');
+          continue;
         }
-        
-        const page = pdfDoc.addPage([image.width, image.height]);
-        page.drawImage(image, {
-          x: 0,
-          y: 0,
-          width: image.width,
-          height: image.height
-        });
-        
-        updateTaskProgress('imagesToPdf', i + 1, imageFiles.length);
-        addLog('imagesToPdf', `Added: ${file.name} (${i + 1}/${imageFiles.length})`, 'progress');
       }
 
       addLog('imagesToPdf', 'Generating PDF...', 'info');
       const pdfBytes = await pdfDoc.save();
       const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
+
+      const folderName = sortedFiles[0].webkitRelativePath?.split('/')[0] || 'images';
       const outputName = `${folderName}.pdf`;
-      
+
       completeTask('imagesToPdf', pdfBlob, outputName);
-      addLog('imagesToPdf', `Completed! Ready to download: ${outputName}`, 'success');
-      
+      addLog('imagesToPdf', `Completed! Total pages: ${pdfDoc.getPageCount()}`, 'success');
+
       const url = URL.createObjectURL(pdfBlob);
       const a = document.createElement('a');
       a.href = url;
@@ -263,12 +292,12 @@ export const ExtraTools: React.FC<ExtraToolsProps> = ({ isVisible, onClose }) =>
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      
+
     } catch (error) {
       addLog('imagesToPdf', `Error: ${error}`, 'error');
       setTasks(prev => ({ ...prev, imagesToPdf: { ...prev.imagesToPdf, status: 'error' } }));
     }
-    
+
     if (imagesToPdfRef.current) imagesToPdfRef.current.value = '';
   }, [addLog, updateTaskProgress, completeTask, resetTask]);
 
@@ -281,17 +310,17 @@ export const ExtraTools: React.FC<ExtraToolsProps> = ({ isVisible, onClose }) =>
     resetTask('textToTxt');
     setShowProgressWindow(true);
     setActiveProgressTab('textToTxt');
-    
+
     const fileName = txtFileName.trim() || 'document';
     addLog('textToTxt', `Creating text file: ${fileName}.txt`, 'info');
     updateTaskProgress('textToTxt', 1, 1);
 
     const blob = new Blob([textInput], { type: 'text/plain' });
     const outputName = `${fileName}.txt`;
-    
+
     completeTask('textToTxt', blob, outputName);
     addLog('textToTxt', `Completed! Downloading: ${outputName}`, 'success');
-    
+
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -300,7 +329,7 @@ export const ExtraTools: React.FC<ExtraToolsProps> = ({ isVisible, onClose }) =>
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    
+
     setTextInput('');
   }, [textInput, txtFileName, addLog, updateTaskProgress, completeTask, resetTask]);
 
@@ -323,23 +352,23 @@ export const ExtraTools: React.FC<ExtraToolsProps> = ({ isVisible, onClose }) =>
     try {
       const arrayBuffer = await file.arrayBuffer();
       const pdfDoc = await PDFDocument.load(arrayBuffer);
-      
+
       addLog('pdfPassword', 'Processing PDF...', 'info');
       updateTaskProgress('pdfPassword', 1, 2);
 
       addLog('pdfPassword', `Password set: ${pdfPassword.replace(/./g, '*')}`, 'info');
       addLog('pdfPassword', 'Note: Browser-based password protection has limitations.', 'info');
-      
+
       const pdfBytes = await pdfDoc.save();
       updateTaskProgress('pdfPassword', 2, 2);
-      
+
       const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
       const outputName = `${originalName}_processed.pdf`;
-      
+
       completeTask('pdfPassword', pdfBlob, outputName);
       addLog('pdfPassword', `Completed! File saved: ${outputName}`, 'success');
       addLog('pdfPassword', 'For full encryption, use desktop PDF tools like Adobe Acrobat.', 'info');
-      
+
       const url = URL.createObjectURL(pdfBlob);
       const a = document.createElement('a');
       a.href = url;
@@ -348,18 +377,18 @@ export const ExtraTools: React.FC<ExtraToolsProps> = ({ isVisible, onClose }) =>
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      
+
       setPdfPassword('');
     } catch (error) {
       addLog('pdfPassword', `Error: ${error}`, 'error');
       setTasks(prev => ({ ...prev, pdfPassword: { ...prev.pdfPassword, status: 'error' } }));
     }
-    
+
     if (pdfPasswordRef.current) pdfPasswordRef.current.value = '';
   }, [pdfPassword, addLog, updateTaskProgress, completeTask, resetTask]);
 
   const handlePdfMerge = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
+    const files = Array.from(e.target.files || []).filter(file => file.type === 'application/pdf'); // Ensure only PDFs are selected
     if (files.length < 2) {
       addLog('pdfMerge', 'Please select at least 2 PDF files to merge!', 'error');
       return;
@@ -368,11 +397,11 @@ export const ExtraTools: React.FC<ExtraToolsProps> = ({ isVisible, onClose }) =>
     resetTask('pdfMerge');
     setShowProgressWindow(true);
     setActiveProgressTab('pdfMerge');
-    
+
     const sortedFiles = files.sort((a, b) => 
       a.name.localeCompare(b.name, undefined, { numeric: true })
     );
-    
+
     addLog('pdfMerge', `Merging ${sortedFiles.length} PDF files...`, 'info');
     updateTaskProgress('pdfMerge', 0, sortedFiles.length);
 
@@ -382,13 +411,13 @@ export const ExtraTools: React.FC<ExtraToolsProps> = ({ isVisible, onClose }) =>
       for (let i = 0; i < sortedFiles.length; i++) {
         const file = sortedFiles[i];
         addLog('pdfMerge', `Processing: ${file.name}`, 'progress');
-        
+
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await PDFDocument.load(arrayBuffer);
         const pages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
-        
+
         pages.forEach(page => mergedPdf.addPage(page));
-        
+
         updateTaskProgress('pdfMerge', i + 1, sortedFiles.length);
         addLog('pdfMerge', `Added ${pdf.getPageCount()} pages from: ${file.name}`, 'info');
       }
@@ -396,13 +425,13 @@ export const ExtraTools: React.FC<ExtraToolsProps> = ({ isVisible, onClose }) =>
       addLog('pdfMerge', 'Generating merged PDF...', 'info');
       const pdfBytes = await mergedPdf.save();
       const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
-      
+
       const firstFileName = sortedFiles[0].name.replace('.pdf', '').replace('.PDF', '');
       const outputName = `${firstFileName}_merged.pdf`;
-      
+
       completeTask('pdfMerge', pdfBlob, outputName);
       addLog('pdfMerge', `Completed! Total pages: ${mergedPdf.getPageCount()}`, 'success');
-      
+
       const url = URL.createObjectURL(pdfBlob);
       const a = document.createElement('a');
       a.href = url;
@@ -411,12 +440,12 @@ export const ExtraTools: React.FC<ExtraToolsProps> = ({ isVisible, onClose }) =>
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      
+
     } catch (error) {
       addLog('pdfMerge', `Error: ${error}`, 'error');
       setTasks(prev => ({ ...prev, pdfMerge: { ...prev.pdfMerge, status: 'error' } }));
     }
-    
+
     if (pdfMergeRef.current) pdfMergeRef.current.value = '';
   }, [addLog, updateTaskProgress, completeTask, resetTask]);
 
