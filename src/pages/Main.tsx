@@ -10,6 +10,7 @@ import A2HSButton from "../A2HSButton";
 import { PDFMaster } from "../components/PDFMaster";
 import { WindowManagerProvider } from "../components/WindowManager";
 import { MolView } from "../components/MolView";
+import { ExtraTools } from "../components/ExtraTools";
 import { handleFileExport } from "../utils/browserUtils";
 
 // import { VirtualKeyboard, FloatingKeyboardButton } from "../components/VirtualKeyboard";
@@ -927,10 +928,11 @@ const DraggablePanel = ({
 };
 
 function Main({ appName, aboutText } :any) {
-    // PDF Master, MolView and Mode Toggle
-    const [currentMode, setCurrentMode] = useState<'cropper' | 'pdfmaster' | 'molview'>('cropper');
+    // PDF Master, MolView, Extra and Mode Toggle
+    const [currentMode, setCurrentMode] = useState<'cropper' | 'pdfmaster' | 'molview' | 'extra'>('cropper');
     const [showPDFMaster, setShowPDFMaster] = useState(false);
     const [showMolView, setShowMolView] = useState(false);
+    const [showExtra, setShowExtra] = useState(false);
     const [finalizedFilesForPDF, setFinalizedFilesForPDF] = useState<any[]>([]);
 
     // Virtual Keyboard
@@ -3966,6 +3968,7 @@ const generateFallbackPreview = () => {
                                 setCurrentMode('cropper');
                                 setShowPDFMaster(false);
                                 setShowMolView(false);
+                                setShowExtra(false);
                             }}
                             className={currentMode === 'cropper' ? 'export-button' : 'button'}
                             style={{
@@ -3993,6 +3996,7 @@ const generateFallbackPreview = () => {
                                 setCurrentMode('pdfmaster');
                                 setShowPDFMaster(true);
                                 setShowMolView(false);
+                                setShowExtra(false);
                             }}
                             className={currentMode === 'pdfmaster' ? 'export-button' : 'button'}
                             style={{
@@ -4015,6 +4019,7 @@ const generateFallbackPreview = () => {
                                 setCurrentMode('molview');
                                 setShowMolView(true);
                                 setShowPDFMaster(false);
+                                setShowExtra(false);
                             }}
                             className={currentMode === 'molview' ? 'export-button' : 'button'}
                             style={{
@@ -4031,6 +4036,29 @@ const generateFallbackPreview = () => {
                             }}
                         >
                             🧪 MolView
+                        </button>
+                        <button
+                            onClick={() => {
+                                setCurrentMode('extra');
+                                setShowExtra(true);
+                                setShowPDFMaster(false);
+                                setShowMolView(false);
+                            }}
+                            className={currentMode === 'extra' ? 'export-button' : 'button'}
+                            style={{
+                                background: currentMode === 'extra' 
+                                    ? 'linear-gradient(45deg, #9C27B0, #673AB7)' 
+                                    : 'linear-gradient(45deg, #666, #555)',
+                                color: 'white',
+                                border: 'none',
+                                padding: '10px 16px',
+                                borderRadius: '8px',
+                                cursor: 'pointer',
+                                fontWeight: 'bold',
+                                boxShadow: currentMode === 'extra' ? '0 4px 12px rgba(156, 39, 176, 0.3)' : 'none'
+                            }}
+                        >
+                            ⚡ Extra
                         </button>
                     </div>
 
@@ -7002,6 +7030,17 @@ const generateFallbackPreview = () => {
                         setCurrentMode('cropper');
                     }}
                 />
+
+                {/* Extra Tools Component */}
+                <WindowManagerProvider>
+                    <ExtraTools 
+                        isVisible={showExtra}
+                        onClose={() => {
+                            setShowExtra(false);
+                            setCurrentMode('cropper');
+                        }}
+                    />
+                </WindowManagerProvider>
 
             </>
         </div>
