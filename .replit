@@ -40,6 +40,10 @@ waitForPort = 5000
 outputType = "webview"
 
 [[ports]]
+localPort = 3000
+externalPort = 3002
+
+[[ports]]
 localPort = 3001
 externalPort = 3001
 
@@ -50,10 +54,6 @@ externalPort = 80
 [[ports]]
 localPort = 5001
 externalPort = 3000
-
-[[ports]]
-localPort = 43771
-externalPort = 3002
 
 [deployment]
 run = ["npx", "serve", "-s", "build", "-l", "5000"]
